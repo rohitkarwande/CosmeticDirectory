@@ -36,9 +36,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
 
   return (
     <div className="w-full max-w-2xl mx-auto px-1">
-      <form onSubmit={handleSubmit} className="relative flex flex-col sm:flex-row items-stretch shadow-md rounded-2xl overflow-hidden bg-white border border-slate-200 focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-transparent transition-all p-1.5 sm:p-0">
-        <div className="flex items-center pl-3 sm:pl-4 text-slate-400 py-3 sm:py-0">
-          <Search size={22} className="flex-shrink-0" />
+      <form onSubmit={handleSubmit} className="relative flex flex-col sm:flex-row items-center bg-white border border-slate-200/90 rounded-2xl p-1.5 sm:p-2 shadow-lg focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-transparent transition-all gap-2">
+        <div className="flex-1 flex items-center pl-3 pr-2 py-1.5 w-full text-slate-400">
+          <Search size={22} className="flex-shrink-0 text-slate-400" />
           <input
             id="location-search-input"
             type="text"
@@ -46,7 +46,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
             onChange={(e) => setQuery(e.target.value)}
             placeholder="City, area or pincode (e.g. Virar, Thane)..."
             disabled={isLoading}
-            className="w-full pl-2 pr-3 py-1 sm:py-4 text-slate-700 bg-transparent placeholder-slate-400 focus:outline-none text-base md:text-lg"
+            className="w-full pl-2.5 pr-2 py-1.5 sm:py-2 text-slate-700 bg-transparent placeholder-slate-400 focus:outline-none text-base md:text-lg"
             required
           />
         </div>
@@ -54,7 +54,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
           id="search-distributors-btn"
           type="submit"
           disabled={isLoading || !query.trim()}
-          className={`w-full sm:w-auto px-6 py-3.5 sm:py-4 font-bold text-sm sm:text-base text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 whitespace-nowrap rounded-xl sm:rounded-none ${
+          className={`w-full sm:w-auto px-6 py-3.5 font-bold text-sm sm:text-base text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 whitespace-nowrap rounded-xl shadow-xs ${
             isLoading || !query.trim() ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
@@ -62,7 +62,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => 
             <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
             <>
-              <Search size={18} className="sm:hidden" />
+              <Search size={18} />
               <span>SEARCH DISTRIBUTORS</span>
             </>
           )}
