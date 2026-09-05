@@ -107,13 +107,17 @@ export function isCosmeticsRelated(tags = {}, name = '') {
 
   const hasNegativeKeyword = negativeKeywords.some(kw => nameLower.includes(kw));
   
-  // Strong cosmetics/beauty keywords
+  // Strong cosmetics/beauty keywords for Indian trade and local markets
   const cosmeticsKeywords = [
     'cosmetic', 'cosmetics', 'beauty collection', 'beauty store', 'beauty world', 
     'beauty product', 'beauty supply', 'beauty supplies', 'beauty house', 'beauty corner', 
     'beauty hub', 'beauty center', 'beauty centre', 'makeup', 'make up', 'skincare', 
     'skin care', 'perfume', 'perfumery', 'attar', 'cosmetic store', 'cosmetics store',
-    'bangles & cosmetics', 'imitation & cosmetics', 'novelty & cosmetics'
+    'bangles & cosmetics', 'imitation & cosmetics', 'novelty & cosmetics',
+    'fancy store', 'fancy stores', 'novelty', 'novelties', 'bangle', 'bangles',
+    'cutpiece', 'collection', 'collections', 'beauty', 'beauties', 'imitation', 'gift & cosmetics',
+    'shringar', 'sringar', 'suhag', 'suhaag', 'oriflame', 'modicare', 'varities', 'varieties',
+    'shopee', 'gift shop', 'novelty', 'fancy'
   ];
 
   const hasCosmeticsKeywordInName = cosmeticsKeywords.some(kw => nameLower.includes(kw));
@@ -132,9 +136,25 @@ export function isCosmeticsRelated(tags = {}, name = '') {
   // Explicit name check
   if (hasCosmeticsKeywordInName) return true;
 
-  // Check if name has distributor/wholesaler/stockist COMBINED with beauty or cosmetic
-  const isTradeTerm = nameLower.includes('distributor') || nameLower.includes('wholesaler') || nameLower.includes('stockist') || nameLower.includes('supplier') || nameLower.includes('agency');
-  const isBeautyTerm = nameLower.includes('beauty') || nameLower.includes('cosmetic');
+  // Check if name has trade terms (distributor/wholesaler/stockist/agency/traders/enterprise) COMBINED with beauty/cosmetic/novelty/collection
+  const isTradeTerm = 
+    nameLower.includes('distributor') || 
+    nameLower.includes('wholesaler') || 
+    nameLower.includes('stockist') || 
+    nameLower.includes('supplier') || 
+    nameLower.includes('agency') ||
+    nameLower.includes('agencies') ||
+    nameLower.includes('traders') ||
+    nameLower.includes('trader') ||
+    nameLower.includes('enterprise') ||
+    nameLower.includes('enterprises');
+
+  const isBeautyTerm = 
+    nameLower.includes('beauty') || 
+    nameLower.includes('cosmetic') || 
+    nameLower.includes('collection') ||
+    nameLower.includes('fancy') ||
+    nameLower.includes('novelty');
 
   if (isTradeTerm && isBeautyTerm) return true;
 
@@ -145,42 +165,58 @@ export function isCosmeticsRelated(tags = {}, name = '') {
  * Checks if a business is a consumer salon/barbershop/hairdresser/spa rather than a cosmetics dealer/distributor/shop.
  */
 export function isConsumerSalon(tags = {}, name = '') {
+  if (!name || typeof name !== 'string') return false;
   const nameLower = name.toLowerCase();
   const shopTag = (tags.shop || '').toLowerCase();
   const amenityTag = (tags.amenity || '').toLowerCase();
   const leisureTag = (tags.leisure || '').toLowerCase();
 
-  // If tags explicitly mark it as hairdresser, barber, or spa
-  if (shopTag === 'hairdresser' || shopTag === 'barber' || shopTag === 'massage' || amenityTag === 'spa' || leisureTag === 'spa') {
-    // Unless the name explicitly mentions cosmetics, wholesale, distributor, or collection
+  // If tags explicitly mark it as hairdresser, barber, massage, spa, or salon
+  if (shopTag === 'hairdresser' || shopTag === 'barber' || shopTag === 'massage' || amenityTag === 'spa' || leisureTag === 'spa' || shopTag === 'beauty') {
     const hasTradeOverride = 
-      nameLower.includes('cosmetic') || 
-      nameLower.includes('distributor') || 
       nameLower.includes('wholesale') || 
+      nameLower.includes('wholesaler') || 
+      nameLower.includes('distributor') || 
       nameLower.includes('supplier') ||
-      nameLower.includes('collection');
+      nameLower.includes('stockist') ||
+      nameLower.includes('imitation') ||
+      nameLower.includes('bangles') ||
+      nameLower.includes('novelty');
     if (!hasTradeOverride) return true;
   }
 
-  // Check name signatures for pure consumer salons
-  const isPureSalonName = 
-    (nameLower.includes('salon') || 
-     nameLower.includes('hairdresser') || 
-     nameLower.includes('barber') || 
-     nameLower.includes('hair studio') || 
-     nameLower.includes('unisex salon') || 
-     nameLower.includes('beauty parlour') ||
-     nameLower.includes('beauty parlor') ||
-     nameLower.includes('spa & wellness')) &&
-    !nameLower.includes('cosmetic') &&
-    !nameLower.includes('distributor') &&
-    !nameLower.includes('wholesale') &&
-    !nameLower.includes('supplier') &&
-    !nameLower.includes('collection') &&
-    !nameLower.includes('store') &&
-    !nameLower.includes('trader');
+  // Strict list of consumer salon / spa / parlour / clinic terms
+  const salonTerms = [
+    'salon', 'salons', 'spa', 'spas', 'parlour', 'parlor', 'parlours', 'parlors',
+    'barber', 'barbers', 'hairdresser', 'hairdressers', 'hair art', 'hair craft',
+    'hair studio', 'hair cut', 'hair style', 'hairstyle', 'makeup artist',
+    'make-up artist', 'make up artist', 'makeover', 'skin clinic', 'clinic',
+    'derma', 'academy', 'classes', 'hair craft', 'beauty clinic'
+  ];
 
-  return isPureSalonName;
+  const hasSalonTerm = salonTerms.some(term => {
+    const regex = new RegExp(`\\b${term}\\b`, 'i');
+    return regex.test(nameLower);
+  });
+
+  if (hasSalonTerm) {
+    const hasTradeOverride = 
+      nameLower.includes('wholesale') || 
+      nameLower.includes('wholesaler') || 
+      nameLower.includes('distributor') || 
+      nameLower.includes('supplier') ||
+      nameLower.includes('stockist') ||
+      nameLower.includes('trader') ||
+      nameLower.includes('traders') ||
+      nameLower.includes('imitation') ||
+      nameLower.includes('bangles') ||
+      nameLower.includes('novelty');
+    
+    // If it contains a salon/spa/parlour/makeover term and has NO trade override, exclude it strictly!
+    if (!hasTradeOverride) return true;
+  }
+
+  return false;
 }
 
 /**

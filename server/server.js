@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
-import { geocodeLocation } from './providers/geocoding.js';
+import { geocodeLocation, CITY_ALIASES } from './providers/geocoding.js';
 import { fetchSalonsFromOverpass } from './providers/overpass.js';
 import { fetchSalonsFromTomTom } from './providers/tomtom.js';
 import { fetchFromGooglePlaces } from './providers/googlePlaces.js';
@@ -148,6 +148,134 @@ const searchLimiter = rateLimit({
 });
 
 /**
+ * Core query function for searching a location string.
+ */
+async function performSearchForLocation(targetLocation) {
+  // Stage 1: Geocoding
+  const geocodeResult = await geocodeLocation(targetLocation);
+
+  // Stage 2: Querying Providers (Google Places, TomTom, Overpass, and Nominatim POI search in parallel)
+  const tomtomKey = process.env.TOMTOM_API_KEY;
+  const googleKey = (process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_PLACES_API)?.trim();
+
+  const googlePromise = googleKey
+    ? fetchFromGooglePlaces(
+        targetLocation,
+        geocodeResult.lat,
+        geocodeResult.lon,
+        geocodeResult.radiusMeters
+      ).catch(err => {
+        console.error('[Search] Google Places fetch failed:', err.message);
+        return [];
+      })
+    : Promise.resolve([]);
+  
+  const osmPromise = fetchSalonsFromOverpass(
+    geocodeResult.lat,
+    geocodeResult.lon,
+    geocodeResult.radiusMeters
+  )
+    .then(elements => elements.map(el => normalizeSalon(el)).filter(Boolean))
+    .catch(err => {
+      console.error('[Search] OpenStreetMap fetch failed:', err.message);
+      return []; // Fallback to empty array
+    });
+
+  const nominatimSearchPromise = fetchFromNominatimSearch(
+    targetLocation,
+    geocodeResult.lat,
+    geocodeResult.lon,
+    geocodeResult.radiusMeters,
+    geocodeResult.isState
+  ).catch(err => {
+    console.error('[Search] Nominatim search failed:', err.message);
+    return [];
+  });
+
+  const tomtomPromise = tomtomKey
+    ? fetchSalonsFromTomTom(
+        geocodeResult.lat,
+        geocodeResult.lon,
+        geocodeResult.radiusMeters
+      )
+        .then(results => results.map(res => normalizeTomTomSalon(res)).filter(Boolean))
+        .catch(err => {
+          console.error('[Search] TomTom fetch failed:', err.message);
+          return []; // Fallback to empty array
+        })
+    : Promise.resolve([]);
+
+  // Wait for all queries to complete
+  const [googleNormalized, osmNormalized, nominatimNormalized, tomtomNormalized] = await Promise.all([
+    googlePromise,
+    osmPromise,
+    nominatimSearchPromise,
+    tomtomPromise
+  ]);
+  
+  // Combine results
+  const combinedNormalized = [...googleNormalized, ...osmNormalized, ...nominatimNormalized, ...tomtomNormalized];
+
+  if (combinedNormalized.length === 0) {
+    return { geocodeResult, finalResults: [] };
+  }
+
+  // Stage 3: Deduplication
+  const deduplicated = deduplicateSalons(combinedNormalized);
+
+  // Stage 4: Location Validation & Proximity Calculation
+  const maxRadiusForCity = Math.max(geocodeResult.radiusMeters * 3, 35000); // 35km maximum radius for local town/city search
+  
+  const validated = deduplicated.filter(salon => {
+    const distance = getHaversineDistance(
+      geocodeResult.lat,
+      geocodeResult.lon,
+      salon.latitude,
+      salon.longitude
+    );
+    salon.distanceMeters = Math.round(distance);
+    salon.distanceKm = Math.round((distance / 1000) * 10) / 10;
+
+    // For State searches, do not restrict by single centroid Haversine distance
+    if (geocodeResult.isState) {
+      return true;
+    }
+      
+    return distance <= maxRadiusForCity;
+  });
+
+  // Stage 5: Website Phone Scraping
+  const scrapePromises = validated.map(async (salon) => {
+    if (!salon.phone && salon.website) {
+      const scrapedPhone = await scrapeWebsitePhone(salon.website);
+      if (scrapedPhone) {
+        console.log(`[Scraper] Found phone ${scrapedPhone} for ${salon.name} on site ${salon.website}`);
+        salon.phone = scrapedPhone;
+      }
+    }
+  });
+  await Promise.all(scrapePromises);
+
+  // Stage 6: Retain valid cosmetics listings with a name and valid location details
+  const finalResults = validated.filter(salon => {
+    const isCosmetic = isCosmeticsRelated(salon.rawTags || {}, salon.name);
+    if (!isCosmetic) return false;
+
+    const hasName = salon.name && salon.name.trim().length > 0;
+    const hasPhone = !!salon.phone;
+    const hasAddress = salon.address && salon.address !== 'Address not available' && salon.address.trim().length > 0;
+    const hasArea = salon.area && salon.area !== 'Area not specified' && salon.area.trim().length > 0;
+    
+    return hasName && (hasPhone || hasAddress || hasArea);
+  });
+
+  // Sort final results ascending by distance from searched location (closest local shops first)
+  finalResults.sort((a, b) => (a.distanceMeters || 0) - (b.distanceMeters || 0));
+
+  return { geocodeResult, finalResults };
+}
+
+/**
  * GET /api/search
  * Queries cosmetics wholesalers, distributors, and suppliers for a given location or area in India.
  */
@@ -174,119 +302,32 @@ app.get('/api/search', searchLimiter, async (req, res) => {
   }
 
   try {
-    // Stage 1: Geocoding
-    const geocodeResult = await geocodeLocation(location);
+    let { geocodeResult, finalResults } = await performSearchForLocation(location);
 
-    // Stage 2: Querying Providers (Google Places, TomTom, Overpass, and Nominatim POI search in parallel)
-    const tomtomKey = process.env.TOMTOM_API_KEY;
-    const googleKey = (process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_PLACES_API)?.trim();
+    // Automatic Disambiguation Fallback: if 0 results found, check CITY_ALIASES for alternative city spellings
+    if (finalResults.length === 0 && CITY_ALIASES[cleanLocation]) {
+      console.log(`[Search Fallback] 0 results for "${cleanLocation}". Trying city aliases:`, CITY_ALIASES[cleanLocation]);
+      for (const alias of CITY_ALIASES[cleanLocation]) {
+        try {
+          const aliasSearchResult = await performSearchForLocation(alias);
+          if (aliasSearchResult.finalResults.length > 0) {
+            console.log(`[Search Fallback] Found ${aliasSearchResult.finalResults.length} results using alias "${alias}"!`);
+            geocodeResult = aliasSearchResult.geocodeResult;
+            finalResults = aliasSearchResult.finalResults;
+            break;
+          }
+        } catch (err) {
+          console.warn(`[Search Fallback] Alias "${alias}" search error:`, err.message);
+        }
+      }
+    }
 
-    const googlePromise = googleKey
-      ? fetchFromGooglePlaces(
-          location,
-          geocodeResult.lat,
-          geocodeResult.lon,
-          geocodeResult.radiusMeters
-        ).catch(err => {
-          console.error('[Search] Google Places fetch failed:', err.message);
-          return [];
-        })
-      : Promise.resolve([]);
-    
-    const osmPromise = fetchSalonsFromOverpass(
-      geocodeResult.lat,
-      geocodeResult.lon,
-      geocodeResult.radiusMeters
-    )
-      .then(elements => elements.map(el => normalizeSalon(el)).filter(Boolean))
-      .catch(err => {
-        console.error('[Search] OpenStreetMap fetch failed:', err.message);
-        return []; // Fallback to empty array
-      });
-
-    const nominatimSearchPromise = fetchFromNominatimSearch(
-      location,
-      geocodeResult.lat,
-      geocodeResult.lon,
-      geocodeResult.radiusMeters
-    ).catch(err => {
-      console.error('[Search] Nominatim search failed:', err.message);
-      return [];
-    });
-
-    const tomtomPromise = tomtomKey
-      ? fetchSalonsFromTomTom(
-          geocodeResult.lat,
-          geocodeResult.lon,
-          geocodeResult.radiusMeters
-        )
-          .then(results => results.map(res => normalizeTomTomSalon(res)).filter(Boolean))
-          .catch(err => {
-            console.error('[Search] TomTom fetch failed:', err.message);
-            return []; // Fallback to empty array
-          })
-      : Promise.resolve([]);
-
-    // Wait for all queries to complete
-    const [googleNormalized, osmNormalized, nominatimNormalized, tomtomNormalized] = await Promise.all([
-      googlePromise,
-      osmPromise,
-      nominatimSearchPromise,
-      tomtomPromise
-    ]);
-    
-    // Combine results (Google Places first for highest quality priority)
-    const combinedNormalized = [...googleNormalized, ...osmNormalized, ...nominatimNormalized, ...tomtomNormalized];
-
-    // If all failed or found nothing, throw an error
-    if (combinedNormalized.length === 0) {
+    if (finalResults.length === 0) {
       throw new Error(`No cosmetics distributors, stores, or beauty suppliers found for "${location}". Try broadening your search area.`);
     }
 
-    // Stage 3: Deduplication
-    const deduplicated = deduplicateSalons(combinedNormalized);
-
-    // Stage 4: Location Validation
-    // Filter results within target radius (expanded to 30km for city searches & Google Places text queries)
-    const baseBufferRadius = geocodeResult.isCity ? Math.max(geocodeResult.radiusMeters * 1.5, 30000) : geocodeResult.radiusMeters * 1.25;
-    
-    const validated = deduplicated.filter(salon => {
-      const distance = getHaversineDistance(
-        geocodeResult.lat,
-        geocodeResult.lon,
-        salon.latitude,
-        salon.longitude
-      );
-      
-      // Google Places results already query Google's text engine for the location; allow up to 35km for metro areas
-      const allowedRadius = salon.source.includes('Google Places') ? Math.max(baseBufferRadius, 35000) : baseBufferRadius;
-      return distance <= allowedRadius;
-    });
-
-    // Stage 5: Website Phone Scraping (Run in parallel for entries with website but no phone)
-    const scrapePromises = validated.map(async (salon) => {
-      if (!salon.phone && salon.website) {
-        const scrapedPhone = await scrapeWebsitePhone(salon.website);
-        if (scrapedPhone) {
-          console.log(`[Scraper] Found phone ${scrapedPhone} for ${salon.name} on site ${salon.website}`);
-          salon.phone = scrapedPhone;
-        }
-      }
-    });
-    await Promise.all(scrapePromises);
-
-    // Stage 6: Retain valid cosmetics listings with a name and valid location details
-    const finalResults = validated.filter(salon => {
-      const isCosmetic = isCosmeticsRelated(salon.rawTags || {}, salon.name);
-      if (!isCosmetic) return false;
-
-      const hasName = salon.name && salon.name.trim().length > 0;
-      const hasPhone = !!salon.phone;
-      const hasAddress = salon.address && salon.address !== 'Address not available' && salon.address.trim().length > 0;
-      const hasArea = salon.area && salon.area !== 'Area not specified' && salon.area.trim().length > 0;
-      
-      return hasName && (hasPhone || hasAddress || hasArea);
-    });
+    const tomtomKey = process.env.TOMTOM_API_KEY;
+    const googleKey = (process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_PLACES_API)?.trim();
 
     // Compute active sources represented in results
     const uniqueSources = new Set(
@@ -302,7 +343,7 @@ app.get('/api/search', searchLimiter, async (req, res) => {
         : 'OpenStreetMap';
 
     const responsePayload = {
-      query: geocodeResult.query,
+      query: location.trim(),
       count: finalResults.length,
       source: sourceString,
       cached: false,
@@ -311,9 +352,6 @@ app.get('/api/search', searchLimiter, async (req, res) => {
       searchRadiusKm: geocodeResult.radiusKm,
       results: finalResults,
     };
-
-    // Store in cache
-    searchCache.set(cleanLocation, responsePayload);
 
     return res.json(responsePayload);
   } catch (error) {

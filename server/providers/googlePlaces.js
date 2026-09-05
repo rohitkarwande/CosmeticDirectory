@@ -18,7 +18,7 @@ export async function fetchFromGooglePlaces(locationName, lat, lon, radiusMeters
   // Google Places API (New) SearchText Endpoint
   const url = 'https://places.googleapis.com/v1/places:searchText';
 
-  const searchQuery = `cosmetics distributor wholesaler beauty collection shop in ${locationName}`;
+  const searchQuery = `cosmetics in ${locationName}`;
 
   try {
     const response = await axios.post(
@@ -31,7 +31,7 @@ export async function fetchFromGooglePlaces(locationName, lat, lon, radiusMeters
               latitude: lat,
               longitude: lon,
             },
-            radius: Math.min(radiusMeters, 15000),
+            radius: Math.min(Math.max(radiusMeters * 3, 25000), 40000),
           },
         },
         maxResultCount: 20, // Strict maximum of 20 results in 1 single HTTP call
@@ -66,7 +66,7 @@ export async function fetchFromGooglePlaces(locationName, lat, lon, radiusMeters
       params: {
         query: searchQuery,
         location: `${lat},${lon}`,
-        radius: Math.min(radiusMeters, 15000),
+        radius: Math.min(Math.max(radiusMeters * 3, 25000), 40000),
         key: apiKey,
       },
       timeout: 8000,

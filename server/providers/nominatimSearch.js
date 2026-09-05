@@ -5,17 +5,46 @@ import { normalizeSalon } from '../utils/normalizer.js';
  * Searches Nominatim directly for specific cosmetics, beauty collection, distributor, and supplier queries.
  * Restricts searches strictly to India.
  */
-export async function fetchFromNominatimSearch(locationName, lat, lon, radiusMeters) {
+export async function fetchFromNominatimSearch(locationName, lat, lon, radiusMeters, isState = false) {
   if (!locationName || typeof locationName !== 'string') return [];
 
-  const searchQueries = [
-    `cosmetics shop in ${locationName}`,
+  let searchQueries = [
+    `cosmetics in ${locationName}`,
     `beauty collection in ${locationName}`,
-    `cosmetics distributor in ${locationName}`,
-    `beauty product shop in ${locationName}`,
-    `cosmetics wholesaler in ${locationName}`,
-    `beauty supply in ${locationName}`
+    `cosmetics distributor wholesaler in ${locationName}`,
   ];
+
+  // If state search, add major commercial hubs for that state to ensure nationwide/statewide coverage
+  if (isState) {
+    const stateLower = locationName.trim().toLowerCase();
+    searchQueries = [`cosmetics in ${locationName}`];
+    if (stateLower === 'karnataka') {
+      searchQueries.push(
+        `cosmetics in Bengaluru`, `cosmetics in Vijayapura`, `cosmetics in Mysuru`,
+        `cosmetics in Hubballi`, `cosmetics in Mangaluru`
+      );
+    } else if (stateLower === 'maharashtra') {
+      searchQueries.push(
+        `cosmetics in Mumbai`, `cosmetics in Pune`, `cosmetics in Thane`, `cosmetics in Nagpur`
+      );
+    } else if (stateLower === 'gujarat') {
+      searchQueries.push(
+        `cosmetics in Ahmedabad`, `cosmetics in Surat`, `cosmetics in Vadodara`
+      );
+    } else if (stateLower === 'tamil nadu') {
+      searchQueries.push(
+        `cosmetics in Chennai`, `cosmetics in Coimbatore`, `cosmetics in Madurai`
+      );
+    } else if (stateLower === 'rajasthan') {
+      searchQueries.push(
+        `cosmetics in Jaipur`, `cosmetics in Jodhpur`, `cosmetics in Udaipur`
+      );
+    } else if (stateLower === 'uttar pradesh') {
+      searchQueries.push(
+        `cosmetics in Lucknow`, `cosmetics in Kanpur`, `cosmetics in Varanasi`
+      );
+    }
+  }
 
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -24,7 +53,8 @@ export async function fetchFromNominatimSearch(locationName, lat, lon, radiusMet
   };
 
   try {
-    const promises = searchQueries.map(async (queryStr) => {
+    const resultsArrays = [];
+    for (const queryStr of searchQueries) {
       try {
         const response = await axios.get('https://nominatim.openstreetmap.org/search', {
           params: {
@@ -35,19 +65,23 @@ export async function fetchFromNominatimSearch(locationName, lat, lon, radiusMet
             limit: 25,
           },
           headers,
-          timeout: 7000,
+          timeout: 4000,
         });
 
         if (Array.isArray(response.data)) {
-          return response.data;
+          resultsArrays.push(response.data);
         }
       } catch (err) {
-        console.warn(`[Nominatim Search] Sub-query failed for "${queryStr}": ${err.message}`);
+        if (err.response && err.response.status === 429) {
+          console.warn(`[Nominatim Search] Rate limited (429) on "${queryStr}". Fast fallback engaged.`);
+          break; // Stop querying Nominatim if rate limited
+        } else {
+          console.warn(`[Nominatim Search] Sub-query failed for "${queryStr}": ${err.message}`);
+        }
       }
-      return [];
-    });
+      await new Promise(r => setTimeout(r, 200));
+    }
 
-    const resultsArrays = await Promise.all(promises);
     const rawItems = resultsArrays.flat();
 
     // Convert Nominatim raw search results to standard OSM format for normalizeSalon
@@ -57,8 +91,10 @@ export async function fetchFromNominatimSearch(locationName, lat, lon, radiusMet
 
         // Build mock tags object compatible with normalizeSalon
         const address = item.address || {};
+        const shopName = item.name || item.display_name.split(',')[0];
+        
         const mockTags = {
-          name: item.name || item.display_name.split(',')[0],
+          name: shopName,
           'addr:street': address.road || address.pedestrian || '',
           'addr:suburb': address.suburb || address.neighbourhood || address.residential || address.commercial || '',
           'addr:city': address.city || address.town || address.village || '',
@@ -66,7 +102,7 @@ export async function fetchFromNominatimSearch(locationName, lat, lon, radiusMet
           'addr:state': address.state || '',
           'addr:postcode': address.postcode || '',
           phone: address.phone || '',
-          shop: item.type === 'cosmetics' ? 'cosmetics' : (item.class === 'shop' ? 'cosmetics' : ''),
+          shop: 'cosmetics',
         };
 
         const mockElement = {

@@ -3,9 +3,7 @@ import axios from 'axios';
 // Verified public Overpass API interpreter endpoints
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://lz4.overpass-api.de/api/interpreter',
-  'https://z.overpass-api.de/api/interpreter'
+  'https://lz4.overpass-api.de/api/interpreter'
 ];
 
 /**
@@ -17,39 +15,40 @@ export async function fetchSalonsFromOverpass(lat, lon, radiusMeters) {
     throw new Error('Invalid query parameters for Overpass API');
   }
 
+  // Cap radius to max 25,000m to keep Overpass queries fast and avoid gateway 504 timeouts
+  const effectiveRadius = Math.min(Math.round(radiusMeters), 25000);
+
   // Fast indexed Overpass QL query targeting cosmetics trade, stores, beauty collections, & distributors
-  const query = `[out:json][timeout:20];
+  const query = `[out:json][timeout:10];
 (
-  node["shop"="cosmetics"](around:${radiusMeters},${lat},${lon});
-  way["shop"="cosmetics"](around:${radiusMeters},${lat},${lon});
+  node["shop"="cosmetics"](around:${effectiveRadius},${lat},${lon});
+  way["shop"="cosmetics"](around:${effectiveRadius},${lat},${lon});
   
-  node["shop"="beauty_supplier"](around:${radiusMeters},${lat},${lon});
-  way["shop"="beauty_supplier"](around:${radiusMeters},${lat},${lon});
+  node["shop"="beauty_supplier"](around:${effectiveRadius},${lat},${lon});
+  way["shop"="beauty_supplier"](around:${effectiveRadius},${lat},${lon});
 
-  node["shop"="perfumery"](around:${radiusMeters},${lat},${lon});
-  way["shop"="perfumery"](around:${radiusMeters},${lat},${lon});
+  node["shop"="perfumery"](around:${effectiveRadius},${lat},${lon});
+  way["shop"="perfumery"](around:${effectiveRadius},${lat},${lon});
 
-  node["trade"="cosmetics"](around:${radiusMeters},${lat},${lon});
-  way["trade"="cosmetics"](around:${radiusMeters},${lat},${lon});
+  node["trade"="cosmetics"](around:${effectiveRadius},${lat},${lon});
+  way["trade"="cosmetics"](around:${effectiveRadius},${lat},${lon});
 
-  node["office"="distributor"](around:${radiusMeters},${lat},${lon});
-  way["office"="distributor"](around:${radiusMeters},${lat},${lon});
+  node["office"="distributor"](around:${effectiveRadius},${lat},${lon});
+  way["office"="distributor"](around:${effectiveRadius},${lat},${lon});
 
-  node["office"="wholesale"](around:${radiusMeters},${lat},${lon});
-  way["office"="wholesale"](around:${radiusMeters},${lat},${lon});
+  node["office"="wholesale"](around:${effectiveRadius},${lat},${lon});
+  way["office"="wholesale"](around:${effectiveRadius},${lat},${lon});
 
-  node["shop"="chemist"](around:${radiusMeters},${lat},${lon});
-  way["shop"="chemist"](around:${radiusMeters},${lat},${lon});
+  node["shop"="chemist"](around:${effectiveRadius},${lat},${lon});
+  way["shop"="chemist"](around:${effectiveRadius},${lat},${lon});
 
-  node["shop"="general"](around:${radiusMeters},${lat},${lon})["name"~"cosmetic|beauty|collection",i];
-  way["shop"="general"](around:${radiusMeters},${lat},${lon})["name"~"cosmetic|beauty|collection",i];
+  node["shop"="general"](around:${effectiveRadius},${lat},${lon})["name"~"cosmetic|beauty|collection|fancy|novelty",i];
+  way["shop"="general"](around:${effectiveRadius},${lat},${lon})["name"~"cosmetic|beauty|collection|fancy|novelty",i];
 
-  node["shop"="variety_store"](around:${radiusMeters},${lat},${lon})["name"~"cosmetic|beauty|collection",i];
-  way["shop"="variety_store"](around:${radiusMeters},${lat},${lon})["name"~"cosmetic|beauty|collection",i];
+  node["shop"="variety_store"](around:${effectiveRadius},${lat},${lon})["name"~"cosmetic|beauty|collection|fancy|novelty",i];
+  way["shop"="variety_store"](around:${effectiveRadius},${lat},${lon})["name"~"cosmetic|beauty|collection|fancy|novelty",i];
 );
 out center;`;
-
-  let lastError = null;
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
     console.log(`[Overpass] Trying endpoint: ${endpoint}`);
@@ -64,7 +63,7 @@ out center;`;
             'Accept': 'application/json',
             'Referer': 'https://github.com/example/salonfinder'
           },
-          timeout: 12000, // 12 seconds timeout per server
+          timeout: 3000, // 3 seconds timeout per server
         }
       );
 
@@ -74,17 +73,10 @@ out center;`;
       }
     } catch (error) {
       console.warn(`[Overpass] Endpoint failed: ${endpoint}. Error: ${error.message}`);
-      lastError = error;
     }
   }
 
-  // If all endpoints failed
-  if (lastError && lastError.response) {
-    if (lastError.response.status === 429) {
-      throw new Error('Live data source is currently busy. Please wait a moment and try again.');
-    }
-    throw new Error(`Live data source returned error: ${lastError.response.status} - ${lastError.response.statusText}`);
-  }
-  
-  throw new Error('Live data source (Overpass API) is temporarily unavailable. Please try again.');
+  // Gracefully return empty array if all Overpass servers timed out
+  console.warn('[Overpass] All endpoints failed or timed out. Falling back to primary providers.');
+  return [];
 }

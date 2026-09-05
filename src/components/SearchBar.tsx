@@ -7,12 +7,12 @@ interface SearchBarProps {
 }
 
 const EXAMPLES = [
+  'Vijaypur',
+  'Karnataka',
   'Virar',
-  'Chinchwad',
-  'Kaman',
-  'Sativali',
-  'Vasai',
+  'Thane',
   'Surat',
+  'Kaman',
   'Mumbai',
   '401303'
 ];
