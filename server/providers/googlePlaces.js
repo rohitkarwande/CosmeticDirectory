@@ -13,47 +13,55 @@ export async function fetchFromGooglePlaces(locationName, lat, lon, radiusMeters
     return [];
   }
 
-  console.log(`[Google Places] Querying for "${locationName}" (1 single API request)...`);
+  console.log(`[Google Places] Querying for "${locationName}" (dual B2B trade & retail queries)...`);
 
   // Google Places API (New) SearchText Endpoint
   const url = 'https://places.googleapis.com/v1/places:searchText';
 
-  const searchQuery = `cosmetics in ${locationName}`;
+  const q1 = `cosmetics wholesaler distributor salon products in ${locationName}`;
+  const q2 = `cosmetics store beauty collection in ${locationName}`;
+  const searchRadius = Math.min(Math.max(radiusMeters * 3, 25000), 40000);
 
   try {
-    const response = await axios.post(
-      url,
-      {
-        textQuery: searchQuery,
-        locationBias: {
-          circle: {
-            center: {
-              latitude: lat,
-              longitude: lon,
-            },
-            radius: Math.min(Math.max(radiusMeters * 3, 25000), 40000),
-          },
+    const postPayload = (queryStr) => ({
+      textQuery: queryStr,
+      locationBias: {
+        circle: {
+          center: { latitude: lat, longitude: lon },
+          radius: searchRadius,
         },
-        maxResultCount: 20, // Strict maximum of 20 results in 1 single HTTP call
-        languageCode: 'en',
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': apiKey,
-          // FieldMask restricted ONLY to Essential basic fields (lowest price tier)
-          'X-Goog-FieldMask':
-            'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.location,places.primaryTypeDisplayName,places.types',
-        },
-        timeout: 8000,
-      }
-    );
+      maxResultCount: 20,
+      languageCode: 'en',
+    });
 
-    if (response.data && Array.isArray(response.data.places)) {
-      console.log(`[Google Places] Success (New API)! Retrieved ${response.data.places.length} listings for ${locationName}.`);
-      return response.data.places
-        .map((place) => normalizeGooglePlace(place))
-        .filter(Boolean);
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask':
+        'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.location,places.primaryTypeDisplayName,places.types',
+    };
+
+    const [res1, res2] = await Promise.all([
+      axios.post(url, postPayload(q1), { headers, timeout: 8000 }).catch(() => null),
+      axios.post(url, postPayload(q2), { headers, timeout: 8000 }).catch(() => null)
+    ]);
+
+    const places1 = res1?.data?.places || [];
+    const places2 = res2?.data?.places || [];
+    const combinedNew = [...places1, ...places2];
+
+    if (combinedNew.length > 0) {
+      const seenIds = new Set();
+      const uniquePlaces = [];
+      for (const p of combinedNew) {
+        if (p.id && !seenIds.has(p.id)) {
+          seenIds.add(p.id);
+          uniquePlaces.push(p);
+        }
+      }
+      console.log(`[Google Places] Success (New API)! Retrieved ${uniquePlaces.length} unique listings for ${locationName}.`);
+      return uniquePlaces.map(p => normalizeGooglePlace(p)).filter(Boolean);
     }
   } catch (error) {
     console.warn(`[Google Places New API] Notice (${error.response?.status || 'network'}):`, error.response?.data?.error?.message || error.message);
@@ -62,23 +70,27 @@ export async function fetchFromGooglePlaces(locationName, lat, lon, radiusMeters
   // Fallback: Try Google Places Legacy Text Search API in case Legacy Places API is enabled on the key
   try {
     const legacyUrl = 'https://maps.googleapis.com/maps/api/place/textsearch/json';
-    const response = await axios.get(legacyUrl, {
-      params: {
-        query: searchQuery,
-        location: `${lat},${lon}`,
-        radius: Math.min(Math.max(radiusMeters * 3, 25000), 40000),
-        key: apiKey,
-      },
-      timeout: 8000,
-    });
 
-    if (response.data && Array.isArray(response.data.results)) {
-      console.log(`[Google Places] Success (Legacy API)! Retrieved ${response.data.results.length} listings for ${locationName}.`);
-      return response.data.results
-        .map((place) => normalizeGooglePlaceLegacy(place))
-        .filter(Boolean);
-    } else if (response.data && response.data.error_message) {
-      console.warn('[Google Places Legacy API] Warning:', response.data.error_message);
+    const [res1, res2] = await Promise.all([
+      axios.get(legacyUrl, { params: { query: q1, location: `${lat},${lon}`, radius: searchRadius, key: apiKey }, timeout: 8000 }).catch(() => null),
+      axios.get(legacyUrl, { params: { query: q2, location: `${lat},${lon}`, radius: searchRadius, key: apiKey }, timeout: 8000 }).catch(() => null)
+    ]);
+
+    const results1 = res1?.data?.results || [];
+    const results2 = res2?.data?.results || [];
+    const combinedLegacy = [...results1, ...results2];
+
+    if (combinedLegacy.length > 0) {
+      const seenIds = new Set();
+      const uniqueLegacy = [];
+      for (const p of combinedLegacy) {
+        if (p.place_id && !seenIds.has(p.place_id)) {
+          seenIds.add(p.place_id);
+          uniqueLegacy.push(p);
+        }
+      }
+      console.log(`[Google Places] Success (Legacy API)! Retrieved ${uniqueLegacy.length} unique listings for ${locationName}.`);
+      return uniqueLegacy.map(p => normalizeGooglePlaceLegacy(p)).filter(Boolean);
     }
   } catch (error) {
     console.warn('[Google Places Legacy API] Error:', error.message);

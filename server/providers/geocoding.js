@@ -66,6 +66,13 @@ const INDIAN_CITY_CENTROIDS = {
   'chalishgaon maharashtra': { lat: 20.4626, lon: 75.0069, displayName: 'Chalisgaon, Jalgaon, Maharashtra, India' },
   'bhusawal': { lat: 21.0455, lon: 75.7894, displayName: 'Bhusawal, Jalgaon, Maharashtra, India' },
   'bhusawal maharashtra': { lat: 21.0455, lon: 75.7894, displayName: 'Bhusawal, Jalgaon, Maharashtra, India' },
+  'tembhurni': { lat: 18.0342, lon: 75.1917, displayName: 'Tembhurni, Solapur, Maharashtra, India' },
+  'tembhurni maharashtra': { lat: 18.0342, lon: 75.1917, displayName: 'Tembhurni, Solapur, Maharashtra, India' },
+  'shamshudhar wala': { lat: 18.0342, lon: 75.1917, displayName: 'Shamshu Dharwala, Tembhurni, Solapur, Maharashtra, India' },
+  'shamshu dharwala': { lat: 18.0342, lon: 75.1917, displayName: 'Shamshu Dharwala, Tembhurni, Solapur, Maharashtra, India' },
+  'shamsundar dharwala': { lat: 18.0342, lon: 75.1917, displayName: 'Shamshu Dharwala, Tembhurni, Solapur, Maharashtra, India' },
+  'shamsu dharwala': { lat: 18.0342, lon: 75.1917, displayName: 'Shamshu Dharwala, Tembhurni, Solapur, Maharashtra, India' },
+  'dharwala tembhurni': { lat: 18.0342, lon: 75.1917, displayName: 'Shamshu Dharwala, Tembhurni, Solapur, Maharashtra, India' },
   'bengaluru': { lat: 12.9716, lon: 77.5946, displayName: 'Bengaluru, Karnataka, India' },
   'bangalore': { lat: 12.9716, lon: 77.5946, displayName: 'Bengaluru, Karnataka, India' },
   'mumbai': { lat: 19.0760, lon: 72.8777, displayName: 'Mumbai, Maharashtra, India' },
@@ -422,5 +429,11 @@ export const CITY_ALIASES = {
   'trivandrum': ['Thiruvananthapuram'],
   'thiruvananthapuram': ['Trivandrum'],
   'pondicherry': ['Puducherry'],
-  'puducherry': ['Pondicherry']
+  'puducherry': ['Pondicherry'],
+  'tembhurni': ['Shamshu Dharwala Tembhurni', 'Tembhurni Maharashtra'],
+  'tembhurni maharashtra': ['Shamshu Dharwala Tembhurni'],
+  'shamshudhar wala': ['Shamshu Dharwala Tembhurni'],
+  'shamshu dharwala': ['Shamshu Dharwala Tembhurni'],
+  'shamsundar dharwala': ['Shamshu Dharwala Tembhurni'],
+  'shamsu dharwala': ['Shamshu Dharwala Tembhurni']
 };

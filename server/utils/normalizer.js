@@ -117,7 +117,10 @@ export function isCosmeticsRelated(tags = {}, name = '') {
     'fancy store', 'fancy stores', 'novelty', 'novelties', 'bangle', 'bangles',
     'cutpiece', 'collection', 'collections', 'beauty', 'beauties', 'imitation', 'gift & cosmetics',
     'shringar', 'sringar', 'suhag', 'suhaag', 'oriflame', 'modicare', 'varities', 'varieties',
-    'shopee', 'gift shop', 'novelty', 'fancy'
+    'shopee', 'gift shop', 'novelty', 'fancy', 'enterprise', 'enterprises', 'trader', 'traders',
+    'agency', 'agencies', 'stockist', 'distributor', 'wholesaler', 'supplier', 'salon product',
+    'salon supplies', 'salon equipment', 'dharwala', 'dhar wala', 'dharwal', 'shamshu', 'shamsundar',
+    'shamsudhar'
   ];
 
   const hasCosmeticsKeywordInName = cosmeticsKeywords.some(kw => nameLower.includes(kw));
