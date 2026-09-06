@@ -13,13 +13,15 @@ export async function fetchFromGooglePlaces(locationName, lat, lon, radiusMeters
     return [];
   }
 
-  console.log(`[Google Places] Querying for "${locationName}" (dual B2B trade & retail queries)...`);
+  console.log(`[Google Places] Querying for "${locationName}" (multi-intent trade, retail & direct queries)...`);
 
   // Google Places API (New) SearchText Endpoint
   const url = 'https://places.googleapis.com/v1/places:searchText';
 
   const q1 = `cosmetics wholesaler distributor salon products in ${locationName}`;
   const q2 = `cosmetics store beauty collection in ${locationName}`;
+  const q3 = `cosmetics in ${locationName}`;
+  const q4 = locationName;
   const searchRadius = Math.min(Math.max(radiusMeters * 3, 25000), 40000);
 
   try {
@@ -42,14 +44,18 @@ export async function fetchFromGooglePlaces(locationName, lat, lon, radiusMeters
         'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.location,places.primaryTypeDisplayName,places.types',
     };
 
-    const [res1, res2] = await Promise.all([
+    const [res1, res2, res3, res4] = await Promise.all([
       axios.post(url, postPayload(q1), { headers, timeout: 8000 }).catch(() => null),
-      axios.post(url, postPayload(q2), { headers, timeout: 8000 }).catch(() => null)
+      axios.post(url, postPayload(q2), { headers, timeout: 8000 }).catch(() => null),
+      axios.post(url, postPayload(q3), { headers, timeout: 8000 }).catch(() => null),
+      axios.post(url, postPayload(q4), { headers, timeout: 8000 }).catch(() => null),
     ]);
 
     const places1 = res1?.data?.places || [];
     const places2 = res2?.data?.places || [];
-    const combinedNew = [...places1, ...places2];
+    const places3 = res3?.data?.places || [];
+    const places4 = res4?.data?.places || [];
+    const combinedNew = [...places1, ...places2, ...places3, ...places4];
 
     if (combinedNew.length > 0) {
       const seenIds = new Set();
@@ -71,14 +77,18 @@ export async function fetchFromGooglePlaces(locationName, lat, lon, radiusMeters
   try {
     const legacyUrl = 'https://maps.googleapis.com/maps/api/place/textsearch/json';
 
-    const [res1, res2] = await Promise.all([
+    const [res1, res2, res3, res4] = await Promise.all([
       axios.get(legacyUrl, { params: { query: q1, location: `${lat},${lon}`, radius: searchRadius, key: apiKey }, timeout: 8000 }).catch(() => null),
-      axios.get(legacyUrl, { params: { query: q2, location: `${lat},${lon}`, radius: searchRadius, key: apiKey }, timeout: 8000 }).catch(() => null)
+      axios.get(legacyUrl, { params: { query: q2, location: `${lat},${lon}`, radius: searchRadius, key: apiKey }, timeout: 8000 }).catch(() => null),
+      axios.get(legacyUrl, { params: { query: q3, location: `${lat},${lon}`, radius: searchRadius, key: apiKey }, timeout: 8000 }).catch(() => null),
+      axios.get(legacyUrl, { params: { query: q4, location: `${lat},${lon}`, radius: searchRadius, key: apiKey }, timeout: 8000 }).catch(() => null),
     ]);
 
     const results1 = res1?.data?.results || [];
     const results2 = res2?.data?.results || [];
-    const combinedLegacy = [...results1, ...results2];
+    const results3 = res3?.data?.results || [];
+    const results4 = res4?.data?.results || [];
+    const combinedLegacy = [...results1, ...results2, ...results3, ...results4];
 
     if (combinedLegacy.length > 0) {
       const seenIds = new Set();
