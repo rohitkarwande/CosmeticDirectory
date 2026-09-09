@@ -93,8 +93,8 @@ const INDIAN_CITY_CENTROIDS = {
  * Tries TomTom Geocoding, Photon OSM, and static centroids.
  */
 async function geocodeLocationFallback(cleanQuery) {
-  const googleKey = (process.env.GOOGLE_PLACES_API || process.env.GOOGLE_PLACES_API_KEY)?.trim();
-  const tomtomKey = process.env.TOMTOM_API_KEY;
+  const googleKey = (process.env.GOOGLE_PLACES_API || process.env.GOOGLE_PLACES_API_KEY || 'AIzaSyDE-fjHSPSTjNayTukn0ENebcK_4ID9DNA')?.trim();
+  const tomtomKey = process.env.TOMTOM_API_KEY || 'd8KweCMWSUcLrpfSktQc9JMEFwcchbrp';
 
   // 1. Try Google Maps Geocoding API if key is set
   if (googleKey) {
@@ -258,7 +258,7 @@ export async function geocodeLocation(query) {
   }
 
   // Primary: Google Maps Geocoding API if key is available (best accuracy for misspellings & state-qualified queries)
-  const googleKey = (process.env.GOOGLE_PLACES_API || process.env.GOOGLE_PLACES_API_KEY)?.trim();
+  const googleKey = (process.env.GOOGLE_PLACES_API || process.env.GOOGLE_PLACES_API_KEY || 'AIzaSyDE-fjHSPSTjNayTukn0ENebcK_4ID9DNA')?.trim();
   if (googleKey) {
     try {
       console.log(`[Geocoding Primary] Querying Google Geocoder for "${cleanQuery}"...`);

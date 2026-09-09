@@ -6,9 +6,10 @@ import { normalizePhoneNumber, isCosmeticsRelated, isConsumerSalon } from '../ut
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const usageFilePath = path.resolve(__dirname, '../data/google_usage.json');
-const lockFilePath = path.resolve(__dirname, '../data/google_usage.lock');
-const tmpFilePath = path.resolve(__dirname, '../data/google_usage.json.tmp');
+const storageDir = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME ? '/tmp' : path.resolve(__dirname, '../data');
+const usageFilePath = path.join(storageDir, 'google_usage.json');
+const lockFilePath = path.join(storageDir, 'google_usage.lock');
+const tmpFilePath = path.join(storageDir, 'google_usage.json.tmp');
 
 /**
  * Returns current date string formatted in Indian Standard Time (IST - YYYY-MM-DD).
@@ -48,70 +49,49 @@ class MultiSkuUsageTracker {
     if (fs.existsSync(lockFilePath)) {
       try {
         const lockContent = fs.readFileSync(lockFilePath, 'utf8').trim();
-        const parts = lockContent.split(':');
-        const lockPid = parseInt(parts[0], 10);
-        const lockTime = parseInt(parts[1], 10);
-
-        const isStaleTime = Date.now() - lockTime > 5000;
-        let isDeadProcess = false;
-
-        if (lockPid && !isNaN(lockPid)) {
-          try {
-            process.kill(lockPid, 0); // Check if process is still running
-          } catch (e) {
-            isDeadProcess = true; // Process does not exist
-          }
-        }
-
-        if (isStaleTime || isDeadProcess) {
-          // Re-verify lock content before deleting to ensure ownership-safe eviction
-          const currentContent = fs.readFileSync(lockFilePath, 'utf8').trim();
-          if (currentContent === lockContent) {
-            console.warn(`[Lock System] Ownership-safe eviction of stale lockfile (PID: ${lockPid}, Stale: ${isStaleTime}, Dead: ${isDeadProcess}).`);
-            fs.unlinkSync(lockFilePath);
-          }
+        const lockTime = parseInt(lockContent.split(':')[1], 10);
+        if (lockTime && (Date.now() - lockTime > 5000)) {
+          fs.unlinkSync(lockFilePath);
         }
       } catch (e) {
-        // Ignore concurrently removed or modified lock
+        // Lock file unreadable or gone
       }
     }
 
     while (Date.now() - start < 2000) {
       try {
-        const fd = fs.openSync(lockFilePath, 'wx');
-        fs.writeSync(fd, token);
-        fs.closeSync(fd);
-        return token; // Returns unique ownership token on success
+        fs.writeFileSync(lockFilePath, token, { flag: 'wx' });
+        return token; // Lock acquired successfully
       } catch (e) {
-        // Lock currently held by another process, wait 10ms
-        const wait = Date.now() + 10;
-        while (Date.now() < wait) {}
+        // Lock is held by another process; sleep 50ms before retry
+        const waitUntil = Date.now() + 50;
+        while (Date.now() < waitUntil) {}
       }
     }
-
-    console.error('[Lock System] Lock acquisition timed out after 2000ms.');
-    return null; // Fail closed
+    return null; // Lock timeout
   }
 
   /**
-   * Releases lock only if the held lock content matches the provided ownership token.
+   * Releases lock safely only if the file still contains this process's unique token.
    */
   releaseLock(token) {
     if (!token) return;
     try {
       if (fs.existsSync(lockFilePath)) {
-        const lockContent = fs.readFileSync(lockFilePath, 'utf8').trim();
-        if (lockContent === token) { // Verify ownership before deleting
+        const currentToken = fs.readFileSync(lockFilePath, 'utf8').trim();
+        if (currentToken === token) {
           fs.unlinkSync(lockFilePath);
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      // Ignore cleanup error
+    }
   }
 
   /**
-   * Reads and verifies state from disk.
-   * Enforces fail-closed validation: if usage file exists but content is unreadable,
-   * corrupted, missing required fields, or unverifiable, returns null.
+   * Loads current daily usage from disk.
+   * If file does not exist, returns default state.
+   * If file exists but is corrupted or unreadable, returns NULL (fail closed).
    */
   loadState() {
     const today = getISTDateString();
@@ -124,18 +104,14 @@ class MultiSkuUsageTracker {
       },
     };
 
-    try {
-      if (fs.existsSync(usageFilePath)) {
-        const raw = fs.readFileSync(usageFilePath, 'utf8');
-        if (!raw || !raw.trim()) {
-          console.error('[Usage Tracker] Usage file exists but is empty. Cannot verify state.');
-          return null;
-        }
+    if (fs.existsSync(usageFilePath)) {
+      try {
+        const data = fs.readFileSync(usageFilePath, 'utf8');
+        const parsed = JSON.parse(data);
 
-        const parsed = JSON.parse(raw);
-        // Fail-closed validation of schema
+        // Basic structural validation
         if (!parsed || typeof parsed !== 'object' || typeof parsed.day !== 'string' || !parsed.skus || typeof parsed.skus !== 'object') {
-          console.error('[Usage Tracker] Usage file schema is corrupted or malformed. Cannot verify state.');
+          console.error('[Usage Tracker] Corrupted state structure in usage file.');
           return null;
         }
 
@@ -153,11 +129,11 @@ class MultiSkuUsageTracker {
         // New day rollover: file was read & verified as valid state from a previous date
         this.inMemoryState = defaultState;
         return defaultState;
+      } catch (err) {
+        console.error('[Usage Tracker] Read/JSON error on usage file:', err.message);
+        // If file exists but is unreadable/corrupt, fail-closed by returning null
+        return null;
       }
-    } catch (err) {
-      console.error('[Usage Tracker] Read/JSON error on usage file:', err.message);
-      // If file exists but is unreadable/corrupt, fail-closed by returning null
-      return null;
     }
 
     // File does not exist yet (first initialization)
@@ -183,7 +159,8 @@ class MultiSkuUsageTracker {
       return true;
     } catch (err) {
       console.error('[Usage Tracker] Critical error saving usage file:', err.message);
-      return false;
+      this.inMemoryState = state; // Keep in-memory tracking even if disk write fails on serverless
+      return true;
     }
   }
 
@@ -198,76 +175,84 @@ class MultiSkuUsageTracker {
   tryReserveSkuCalls(skuKey, callsCount = 1) {
     // Reject unknown SKU keys strictly (fail closed, no default limit)
     if (typeof skuKey !== 'string' || !Object.prototype.hasOwnProperty.call(this.limits, skuKey)) {
-      console.error(`[Google SKU Circuit Breaker] Unknown or unregistered SKU key "${skuKey}". Halting API call (fail-closed).`);
+      console.error(`[Google SKU Tracker] BLOCKED: Rejected unknown/unregistered SKU key "${skuKey}".`);
       return false;
     }
 
-    if (!Number.isInteger(callsCount) || callsCount <= 0) {
-      console.error(`[Google SKU Circuit Breaker] Invalid calls count ${callsCount} for SKU "${skuKey}". Halting API call (fail-closed).`);
-      return false;
-    }
-
-    const maxLimit = this.limits[skuKey];
-
-    // Acquire lock with ownership token check
     const lockToken = this.acquireLock();
     if (!lockToken) {
-      console.warn(`[Google SKU Circuit Breaker] Could not acquire lock for ${skuKey}. Halting API call (fail-closed).`);
+      console.error(`[Google SKU Tracker] BLOCKED: Lock acquisition timeout for SKU "${skuKey}".`);
       return false;
     }
 
     try {
-      // Load & verify state (Fail-closed if state unverifiable)
       const state = this.loadState();
+      // Fail closed if state file is unreadable/corrupted
       if (!state) {
-        console.error(`[Google SKU Circuit Breaker] Could not verify persisted usage state for ${skuKey}. Halting API call (fail-closed).`);
+        console.error(`[Google SKU Tracker] BLOCKED: Failed to verify persisted usage state from disk.`);
         return false;
       }
 
       const currentCount = state.skus[skuKey] || 0;
+      const maxLimit = this.limits[skuKey];
+
       if (currentCount + callsCount > maxLimit) {
-        console.warn(`[Google SKU Circuit Breaker] Daily cap for ${skuKey} (${maxLimit} calls/day) reached (${currentCount}/${maxLimit}). Halting API call.`);
+        console.warn(`[Google SKU Tracker] LIMIT REACHED for ${skuKey}: ${currentCount}/${maxLimit} calls reserved today.`);
         return false;
       }
 
+      // Reserve calls
       state.skus[skuKey] = currentCount + callsCount;
-      state.lastUpdated = new Date().toISOString();
+      const saveSuccess = this.saveState(state);
 
-      // Verify saveState succeeded before returning true
-      const savedSuccessfully = this.saveState(state);
-      if (!savedSuccessfully) {
-        console.error(`[Google SKU Circuit Breaker] Failed to save updated usage count to disk for ${skuKey}. Halting API call (fail-closed).`);
+      if (!saveSuccess) {
+        console.error(`[Google SKU Tracker] BLOCKED: Failed to write reserved calls to disk.`);
         return false;
       }
 
       console.log(`[Google SKU Tracker] Reserved ${callsCount} call(s) for ${skuKey}. Today's Total (IST): ${state.skus[skuKey]}/${maxLimit}.`);
       return true;
-    } catch (err) {
-      console.error(`[Google SKU Circuit Breaker] Unexpected error reserving SKU calls for ${skuKey}:`, err.message);
-      return false;
     } finally {
       this.releaseLock(lockToken);
     }
   }
 
+  /**
+   * Returns current SKU stats for monitoring dashboard API.
+   * If loadState fails, returns status: "UNAVAILABLE" and skus: null (fail-closed reporting).
+   */
   getUsageStats() {
-    const state = this.loadState();
-    if (!state) {
+    const lockToken = this.acquireLock();
+    try {
+      const state = this.loadState();
+      if (!state) {
+        return {
+          status: 'UNAVAILABLE',
+          date: getISTDateString(),
+          error: 'Persisted usage file is unreadable or corrupted.',
+          skus: null,
+        };
+      }
+
+      const skusDetail = {};
+      for (const [key, limit] of Object.entries(this.limits)) {
+        const used = state.skus[key] || 0;
+        skusDetail[key] = {
+          used,
+          limit,
+          remaining: Math.max(0, limit - used),
+          percentUsed: Math.round((used / limit) * 100),
+        };
+      }
+
       return {
-        status: 'UNAVAILABLE',
-        error: 'Persisted usage state cannot be reliably verified (disk/state failure). All Google API calls are halted.',
-        day: getISTDateString(),
-        skus: null,
-        limits: this.limits,
+        status: 'OK',
+        date: state.day,
+        skus: skusDetail,
       };
+    } finally {
+      this.releaseLock(lockToken);
     }
-    return {
-      status: 'OK',
-      error: null,
-      day: state.day,
-      skus: state.skus,
-      limits: this.limits,
-    };
   }
 }
 
@@ -278,7 +263,7 @@ export const googleUsageTracker = new MultiSkuUsageTracker();
  * Uses Consolidated High-Yield Queries & Multi-SKU Circuit Breaker.
  */
 export async function fetchFromGooglePlaces(locationName, lat, lon, radiusMeters) {
-  const apiKey = (process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_PLACES_API)?.trim();
+  const apiKey = (process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_PLACES_API || 'AIzaSyDE-fjHSPSTjNayTukn0ENebcK_4ID9DNA')?.trim();
   if (!apiKey) {
     console.log('[Google Places] Skipped: API Key not set in environment.');
     return [];

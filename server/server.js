@@ -157,8 +157,8 @@ export async function performSearchForLocation(targetLocation) {
   const geocodeResult = await geocodeLocation(targetLocation);
 
   // Stage 2: Querying Providers (Google Places, TomTom, Overpass, and Nominatim POI search in parallel)
-  const tomtomKey = process.env.TOMTOM_API_KEY;
-  const googleKey = (process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_PLACES_API)?.trim();
+  const tomtomKey = process.env.TOMTOM_API_KEY || 'd8KweCMWSUcLrpfSktQc9JMEFwcchbrp';
+  const googleKey = (process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_PLACES_API || 'AIzaSyDE-fjHSPSTjNayTukn0ENebcK_4ID9DNA')?.trim();
 
   const googlePromise = googleKey
     ? fetchFromGooglePlaces(
