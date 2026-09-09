@@ -9,6 +9,8 @@ export function exportToExcel(salons: Salon[], locationName: string) {
 
   // Map fields into flat structure for Excel columns
   const data = salons.map(s => ({
+    'Client Status': s.isClient ? 'Existing Client (Catered)' : 'Potential Lead',
+    'Matched Client Name': s.matchedClient ? s.matchedClient.clientName : '',
     'Business Name': s.name,
     'Phone': s.phone || 'Phone not available',
     'Address': s.address,
@@ -29,6 +31,8 @@ export function exportToExcel(salons: Salon[], locationName: string) {
 
   // Set professional column widths
   worksheet['!cols'] = [
+    { wch: 25 }, // Client Status
+    { wch: 25 }, // Matched Client Name
     { wch: 32 }, // Business Name
     { wch: 18 }, // Phone
     { wch: 50 }, // Address

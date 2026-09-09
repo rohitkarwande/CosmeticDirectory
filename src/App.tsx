@@ -1,18 +1,22 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { SearchBar } from './components/SearchBar';
 import { ProgressIndicator } from './components/ProgressIndicator';
 import { StatsCards } from './components/StatsCards';
 import { FiltersSection } from './components/FiltersSection';
 import { SalonsTable } from './components/SalonsTable';
 import { Disclaimer } from './components/Disclaimer';
-import { exportToExcel } from './utils/excel';
-import type { SearchResponse } from './types';
-import { ArrowLeft, Download, Copy, RefreshCw, Sparkles, Check, Database, Eye } from 'lucide-react';
+import { ClientManagementView } from './components/ClientManagementView';
+import { matchSalonToClient } from './utils/clientMatcher';
+import type { SearchResponse, Client } from './types';
+import { ArrowLeft, Copy, RefreshCw, Sparkles, Check, Database, Eye, MapPin, Search } from 'lucide-react';
+
 
 function App() {
+  const [appTab, setAppTab] = useState<'search' | 'clients'>('search');
   const [view, setView] = useState<'home' | 'results'>('home');
   const [query, setQuery] = useState('');
   const [searchResult, setSearchResult] = useState<SearchResponse | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [progressStage, setProgressStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -23,18 +27,38 @@ function App() {
   const [phoneFilter, setPhoneFilter] = useState<'All' | 'Has Phone' | 'No Phone'>('All');
   const [sourceFilter, setSourceFilter] = useState<'All' | 'Google Places' | 'OpenStreetMap' | 'TomTom'>('All');
   const [verificationFilter, setVerificationFilter] = useState<'All' | 'Phone Available' | 'Address Available'>('All');
+  const [clientFilter, setClientFilter] = useState<'All' | 'Existing Clients Only' | 'Potential Leads Only'>('All');
+
+  // Helper to determine API URL
+  const getApiBaseUrl = () => {
+    const customBase = import.meta.env.VITE_API_BASE_URL;
+    if (customBase) return customBase;
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    return isLocal ? 'http://localhost:5000' : '';
+  };
   
   // Toast Alert State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Helper to determine API URL
-  const getApiUrl = (location: string, refresh = false) => {
-    const customBase = import.meta.env.VITE_API_BASE_URL;
-    if (customBase) {
-      return `${customBase}/api/search?location=${encodeURIComponent(location)}${refresh ? '&refresh=true' : ''}`;
+  // Fetch client list from backend
+  const fetchClients = async () => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/clients`);
+      if (res.ok) {
+        const data = await res.json();
+        setClients(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch registered client list:', err);
     }
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const base = isLocal ? 'http://localhost:5000' : '';
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  const getApiUrl = (location: string, refresh = false) => {
+    const base = getApiBaseUrl();
     return `${base}/api/search?location=${encodeURIComponent(location)}${refresh ? '&refresh=true' : ''}`;
   };
 
@@ -45,6 +69,9 @@ function App() {
     setError(null);
     setProgressStage(0);
     setQuery(locationQuery);
+
+    // Refresh client list before performing search
+    await fetchClients();
 
     // Progressive loader animation
     let currentStage = 0;
@@ -79,6 +106,7 @@ function App() {
         setPhoneFilter('All');
         setSourceFilter('All');
         setVerificationFilter('All');
+        setClientFilter('All');
       }, 500);
 
     } catch (err: any) {
@@ -88,32 +116,47 @@ function App() {
     }
   };
 
+  // Process search results to attach isClient and matchedClient dynamically using fuzzy matching
+  const processedResults = useMemo(() => {
+    if (!searchResult) return [];
+    return searchResult.results.map((salon) => {
+      const matchResult = matchSalonToClient(salon, clients);
+      return {
+        ...salon,
+        isClient: matchResult.isClient,
+        matchedClient: matchResult.matchedClient
+      };
+    });
+  }, [searchResult, clients]);
+
   // Get distinct categories present in the results to fill dropdown dynamically
   const availableCategories = useMemo(() => {
     if (!searchResult) return [];
     const cats = new Set<string>();
-    searchResult.results.forEach(s => cats.add(s.category));
+    processedResults.forEach(s => cats.add(s.category));
     return Array.from(cats).sort();
-  }, [searchResult]);
+  }, [processedResults, searchResult]);
 
-  // Reactively filter and sort results in memory (phone available first)
+  // Reactively filter and sort results in memory (Existing clients & phone available first)
   const filteredSalons = useMemo(() => {
-    if (!searchResult) return [];
-    const filtered = searchResult.results.filter((salon) => {
-      // 1. Text Search
+    if (!processedResults) return [];
+    return processedResults.filter((salon) => {
+      // 1. Text search filter
       if (searchTerm.trim()) {
-        const keyword = searchTerm.toLowerCase();
-        const nameMatch = salon.name.toLowerCase().includes(keyword);
-        const addressMatch = salon.address.toLowerCase().includes(keyword);
-        const areaMatch = salon.area.toLowerCase().includes(keyword);
-        const cityMatch = salon.city.toLowerCase().includes(keyword);
+        const queryLower = searchTerm.toLowerCase();
+        const matchesName = salon.name.toLowerCase().includes(queryLower);
+        const matchesAddress = salon.address.toLowerCase().includes(queryLower);
+        const matchesCity = salon.city.toLowerCase().includes(queryLower);
+        const matchesArea = salon.area.toLowerCase().includes(queryLower);
+        const matchesPhone = salon.phone ? salon.phone.includes(queryLower) : false;
+        const matchesClientName = salon.matchedClient ? salon.matchedClient.clientName.toLowerCase().includes(queryLower) : false;
         
-        if (!nameMatch && !addressMatch && !areaMatch && !cityMatch) {
+        if (!matchesName && !matchesAddress && !matchesCity && !matchesArea && !matchesPhone && !matchesClientName) {
           return false;
         }
       }
 
-      // 2. Category
+      // 2. Category Filter
       if (selectedCategory !== 'All' && salon.category !== selectedCategory) {
         return false;
       }
@@ -122,35 +165,30 @@ function App() {
       if (phoneFilter === 'Has Phone' && !salon.phone) return false;
       if (phoneFilter === 'No Phone' && salon.phone) return false;
 
-      // 4. Source
-      if (sourceFilter !== 'All' && !salon.source.includes(sourceFilter)) return false;
+      // 4. Source Filter
+      if (sourceFilter !== 'All' && salon.source !== sourceFilter) return false;
 
-      // 5. Verification Filter
+      // 5. Verification / Completeness Filter
       if (verificationFilter === 'Phone Available' && !salon.phone) return false;
-      if (verificationFilter === 'Address Available' && (salon.address === 'Address not available' || !salon.address)) {
-        return false;
-      }
+      if (verificationFilter === 'Address Available' && (!salon.address || salon.address.length < 5)) return false;
 
-      // 6. Must have AT LEAST phone or valid address
-      const hasPhone = !!salon.phone;
-      const hasAddress = salon.address && salon.address !== 'Address not available' && salon.address.trim().length > 0;
-      if (!hasPhone && !hasAddress) {
-        return false;
-      }
+      // 6. Client Status Filter
+      if (clientFilter === 'Existing Clients Only' && !salon.isClient) return false;
+      if (clientFilter === 'Potential Leads Only' && salon.isClient) return false;
 
       return true;
-    });
+    }).sort((a, b) => {
+      // Sort priority: Existing Client first, then Has phone first, then alphabetical by name
+      if (a.isClient && !b.isClient) return -1;
+      if (!a.isClient && b.isClient) return 1;
 
-    // Sort: Salons with phone numbers first, then alphabetically by name
-    return [...filtered].sort((a, b) => {
-      const hasPhoneA = !!a.phone;
-      const hasPhoneB = !!b.phone;
-
+      const hasPhoneA = Boolean(a.phone);
+      const hasPhoneB = Boolean(b.phone);
       if (hasPhoneA && !hasPhoneB) return -1;
       if (!hasPhoneA && hasPhoneB) return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [searchResult, searchTerm, selectedCategory, phoneFilter, sourceFilter, verificationFilter]);
+  }, [processedResults, searchTerm, selectedCategory, phoneFilter, sourceFilter, verificationFilter, clientFilter]);
 
   // Copy phone numbers of filtered items
   const handleCopyPhoneNumbers = () => {
@@ -177,55 +215,152 @@ function App() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleExport = () => {
-    exportToExcel(filteredSalons, query);
+  // Toggle client status (ON / OFF) and persist to disk via backend API
+  const handleToggleClientStatus = async (salon: any) => {
+    const baseUrl = getApiBaseUrl();
+    
+    if (salon.isClient) {
+      // Find matching client record in clients list
+      const targetClient = clients.find(c =>
+        (salon.matchedClient && c.id === salon.matchedClient.id) ||
+        c.id === salon.id.replace('saved-', '') ||
+        c.shopName.toLowerCase() === salon.name.toLowerCase() ||
+        c.clientName.toLowerCase() === salon.name.toLowerCase() ||
+        (salon.phone && c.phone && c.phone.replace(/\D/g, '').slice(-10) === salon.phone.replace(/\D/g, '').slice(-10))
+      );
+
+      if (targetClient) {
+        try {
+          const res = await fetch(`${baseUrl}/api/clients/${targetClient.id}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            setClients(prev => prev.filter(c => c.id !== targetClient.id));
+            showToast(`Client status toggled OFF for "${salon.name}"`);
+          } else {
+            showToast(`Failed to update client status for "${salon.name}"`);
+          }
+        } catch (err) {
+          console.error('Failed to delete client:', err);
+          showToast('Error persisting client status change.');
+        }
+      } else {
+        showToast(`Could not locate client record for "${salon.name}"`);
+      }
+    } else {
+      // Create new client record in database
+      const newClientPayload = {
+        clientName: salon.name,
+        shopName: salon.name,
+        phone: salon.phone || '',
+        state: salon.state || 'Maharashtra',
+        district: salon.district || salon.area || 'Unknown',
+        cityArea: salon.area || salon.city || '',
+        latitude: salon.latitude || 19.7515,
+        longitude: salon.longitude || 75.7139,
+      };
+
+      try {
+        const res = await fetch(`${baseUrl}/api/clients`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newClientPayload),
+        });
+        if (res.ok) {
+          const createdClient = await res.json();
+          setClients(prev => [createdClient, ...prev]);
+          showToast(`"${salon.name}" marked as Client!`);
+        } else {
+          showToast(`Failed to mark "${salon.name}" as Client`);
+        }
+      } catch (err) {
+        console.error('Failed to create client:', err);
+        showToast('Error persisting client status change.');
+      }
+    }
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between">
+    <div className="min-h-screen flex flex-col justify-between bg-slate-50 text-slate-800">
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div id="toast-banner" className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-lg shadow-xl text-sm font-semibold flex items-center gap-2 border border-slate-700 animate-slide-in">
+        <div id="toast-banner" className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl text-sm font-semibold flex items-center gap-2 border border-slate-800 animate-slide-in">
           <Check size={16} className="text-emerald-400 stroke-[3]" />
           {toastMessage}
         </div>
       )}
 
       {/* Header Bar */}
-      <header className="bg-white border-b border-slate-200 py-3.5 px-4 sm:px-6 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('home')}>
-            <span className="p-1.5 sm:p-2 bg-gradient-to-tr from-brand-600 to-indigo-600 rounded-xl text-white shadow-xs">
-              <Sparkles size={18} className="sm:w-5 sm:h-5" />
+      <header className="bg-white/90 border-b border-slate-200/80 py-3.5 px-4 sm:px-6 sticky top-0 z-40 shadow-xs backdrop-blur-md">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setAppTab('search'); setView('home'); }}>
+            <span className="p-2 bg-gradient-to-tr from-brand-600 to-indigo-600 rounded-xl text-white shadow-sm">
+              <Sparkles size={20} />
             </span>
-            <span className="font-extrabold text-lg sm:text-xl bg-clip-text text-transparent bg-gradient-to-r from-brand-600 to-indigo-600 tracking-tight">
-              CosmeticSupply
-            </span>
+            <div>
+              <span className="font-extrabold text-xl text-slate-900 tracking-tight">
+                CosmeticSupply
+              </span>
+              <span className="text-[10px] uppercase font-extrabold tracking-widest text-brand-600 block -mt-1">
+                Owner & Trade Portal
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-slate-600 bg-slate-100/80 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border border-slate-200/60">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="hidden sm:inline">Live B2B Search India</span>
-            <span className="sm:hidden">India B2B</span>
+
+          {/* Main App Navigation Tabs */}
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+            <button
+              onClick={() => setAppTab('search')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                appTab === 'search'
+                  ? 'bg-white text-brand-700 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>CosmeticShop B2B</span>
+            </button>
+
+            <button
+              onClick={() => setAppTab('clients')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                appTab === 'clients'
+                  ? 'bg-white text-brand-700 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Owner Client Map</span>
+            </button>
           </div>
         </div>
       </header>
 
       {/* Main Body */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-6 space-y-5 sm:space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-6 space-y-5 sm:space-y-6">
         
-        {/* VIEW 1: HOME */}
-        {view === 'home' && !isLoading && (
-          <div className="py-6 sm:py-12 md:py-16 space-y-8 sm:space-y-12 md:space-y-16">
-            
-            {/* Hero Heading */}
-            <div className="text-center space-y-3 sm:space-y-4 max-w-3xl mx-auto px-2">
-              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-slate-800 tracking-tight leading-tight sm:leading-none">
-                Find cosmetics wholesalers & distributors across India
-              </h1>
-              <p className="text-slate-500 text-sm sm:text-base md:text-xl font-medium leading-relaxed max-w-2xl mx-auto">
-                Search verified trade leads by city, local area (e.g. Virar, Thane, Kaman, Sativali), suburb or pincode. Filter results and export to Excel.
-              </p>
-            </div>
+        {/* APP TAB 2: OWNER CLIENT MAP & DIRECTORY */}
+        {appTab === 'clients' && (
+          <ClientManagementView />
+        )}
+
+        {/* APP TAB 1: B2B COSMETIC SHOP & WHOLESALER SEARCH */}
+        {appTab === 'search' && (
+          <>
+            {/* VIEW 1: HOME */}
+            {view === 'home' && !isLoading && (
+              <div className="py-6 sm:py-12 md:py-16 space-y-8 sm:space-y-12 md:space-y-16">
+                
+                {/* Hero Heading */}
+                <div className="text-center space-y-3 sm:space-y-4 max-w-3xl mx-auto px-2">
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight sm:leading-none">
+                    Find cosmetics wholesalers & distributors across India
+                  </h1>
+                  <p className="text-slate-600 text-sm sm:text-base md:text-lg font-medium leading-relaxed max-w-2xl mx-auto">
+                    Search verified trade leads by city, local area (e.g. Virar, Thane, Kaman, Sativali), suburb or pincode.
+                  </p>
+                </div>
+
 
             {/* Search Box */}
             <SearchBar onSearch={handleSearch} isLoading={isLoading} />
@@ -262,10 +397,10 @@ function App() {
               <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-2 sm:col-span-2 md:col-span-1">
                 <h3 className="font-extrabold text-slate-800 text-sm sm:text-base flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                  Excel & Bulk Export
+                  Bulk Contact Copy
                 </h3>
                 <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
-                  Export currently filtered distributor records to structured Excel spreadsheets or copy phone numbers in bulk with one click.
+                  Copy phone numbers in bulk with one click for easy client outreach and WhatsApp messaging.
                 </p>
               </div>
             </div>
@@ -291,8 +426,8 @@ function App() {
                 </div>
                 <div className="space-y-1.5">
                   <div className="w-9 h-9 sm:w-10 sm:h-10 bg-slate-50 text-slate-600 rounded-full flex items-center justify-center font-bold text-sm sm:text-base mx-auto border border-slate-200">4</div>
-                  <h4 className="font-bold text-slate-800 text-xs sm:text-sm">Export Results</h4>
-                  <p className="text-slate-500 text-[11px] sm:text-xs leading-relaxed">Download your Excel spreadsheet or copy telephone contacts instantly.</p>
+                  <h4 className="font-bold text-slate-800 text-xs sm:text-sm">Connect & Outreach</h4>
+                  <p className="text-slate-500 text-[11px] sm:text-xs leading-relaxed">Copy telephone contacts instantly for WhatsApp campaigns or direct outreach.</p>
                 </div>
               </div>
             </div>
@@ -365,15 +500,6 @@ function App() {
                   <span>Copy Phones</span>
                 </button>
 
-                {/* Export excel */}
-                <button
-                  id="export-excel-btn"
-                  onClick={handleExport}
-                  className="col-span-2 sm:col-span-1 px-4 py-2 text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-xs"
-                >
-                  <Download size={14} />
-                  <span>Export Excel</span>
-                </button>
               </div>
             </div>
 
@@ -400,15 +526,19 @@ function App() {
               onSourceFilterChange={setSourceFilter}
               verificationFilter={verificationFilter}
               onVerificationFilterChange={setVerificationFilter}
+              clientFilter={clientFilter}
+              onClientFilterChange={setClientFilter}
             />
 
             {/* Results Grid / Table */}
-            <SalonsTable salons={filteredSalons} />
+            <SalonsTable salons={filteredSalons} onToggleClient={handleToggleClientStatus} />
 
             {/* Disclaimer */}
             <Disclaimer />
 
           </div>
+        )}
+          </>
         )}
 
       </main>

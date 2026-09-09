@@ -17,6 +17,9 @@ interface FiltersSectionProps {
 
   verificationFilter: 'All' | 'Phone Available' | 'Address Available';
   onVerificationFilterChange: (val: 'All' | 'Phone Available' | 'Address Available') => void;
+
+  clientFilter?: 'All' | 'Existing Clients Only' | 'Potential Leads Only';
+  onClientFilterChange?: (val: 'All' | 'Existing Clients Only' | 'Potential Leads Only') => void;
 }
 
 export const FiltersSection: React.FC<FiltersSectionProps> = ({
@@ -30,7 +33,9 @@ export const FiltersSection: React.FC<FiltersSectionProps> = ({
   sourceFilter,
   onSourceFilterChange,
   verificationFilter,
-  onVerificationFilterChange
+  onVerificationFilterChange,
+  clientFilter = 'All',
+  onClientFilterChange
 }) => {
   return (
     <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-4 sm:p-5 space-y-4">
@@ -108,7 +113,7 @@ export const FiltersSection: React.FC<FiltersSectionProps> = ({
         </div>
 
         {/* Verification */}
-        <div className="space-y-1 sm:space-y-1.5 sm:col-span-2 lg:col-span-1">
+        <div className="space-y-1 sm:space-y-1.5">
           <label htmlFor="verification-filter" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Verification</label>
           <select
             id="verification-filter"
@@ -121,6 +126,23 @@ export const FiltersSection: React.FC<FiltersSectionProps> = ({
             <option value="Address Available">Address Available</option>
           </select>
         </div>
+
+        {/* Client Status */}
+        {onClientFilterChange && (
+          <div className="space-y-1 sm:space-y-1.5">
+            <label htmlFor="client-filter" className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Client Status</label>
+            <select
+              id="client-filter"
+              value={clientFilter}
+              onChange={(e) => onClientFilterChange(e.target.value as any)}
+              className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs sm:text-sm bg-emerald-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all text-emerald-900 font-semibold"
+            >
+              <option value="All">All Results</option>
+              <option value="Existing Clients Only">🟢 Existing Clients Only</option>
+              <option value="Potential Leads Only">⚪ Potential Leads Only</option>
+            </select>
+          </div>
+        )}
       </div>
     </div>
   );

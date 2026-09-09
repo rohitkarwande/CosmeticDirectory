@@ -1,0 +1,36 @@
+// Odisha 30 Districts GeoJSON Feature Collection
+export const ODISHA_GEOJSON = {
+  type: "FeatureCollection",
+  features: [
+    { type: "Feature", properties: { name: "Angul" }, geometry: { type: "Polygon", coordinates: [[[84.90, 20.69], [85.30, 20.69], [85.30, 20.99], [84.90, 20.99], [84.90, 20.69]]] } },
+    { type: "Feature", properties: { name: "Balangir" }, geometry: { type: "Polygon", coordinates: [[[83.28, 20.57], [83.68, 20.57], [83.68, 20.87], [83.28, 20.87], [83.28, 20.57]]] } },
+    { type: "Feature", properties: { name: "Balasore" }, geometry: { type: "Polygon", coordinates: [[[86.73, 21.34], [87.13, 21.34], [87.13, 21.64], [86.73, 21.64], [86.73, 21.34]]] } },
+    { type: "Feature", properties: { name: "Bargarh" }, geometry: { type: "Polygon", coordinates: [[[83.42, 21.18], [83.82, 21.18], [83.82, 21.48], [83.42, 21.48], [83.42, 21.18]]] } },
+    { type: "Feature", properties: { name: "Bhadrak" }, geometry: { type: "Polygon", coordinates: [[[86.30, 20.91], [86.70, 20.91], [86.70, 21.21], [86.30, 21.21], [86.30, 20.91]]] } },
+    { type: "Feature", properties: { name: "Baudh" }, geometry: { type: "Polygon", coordinates: [[[84.12, 20.69], [84.52, 20.69], [84.52, 20.99], [84.12, 20.99], [84.12, 20.69]]] } },
+    { type: "Feature", properties: { name: "Cuttack" }, geometry: { type: "Polygon", coordinates: [[[85.68, 20.31], [86.08, 20.31], [86.08, 20.61], [85.68, 20.61], [85.68, 20.31]]] } },
+    { type: "Feature", properties: { name: "Deogarh" }, geometry: { type: "Polygon", coordinates: [[[84.53, 21.38], [84.93, 21.38], [84.93, 21.68], [84.53, 21.68], [84.53, 21.38]]] } },
+    { type: "Feature", properties: { name: "Dhenkanal" }, geometry: { type: "Polygon", coordinates: [[[85.40, 20.51], [85.80, 20.51], [85.80, 20.81], [85.40, 20.81], [85.40, 20.51]]] } },
+    { type: "Feature", properties: { name: "Gajapati" }, geometry: { type: "Polygon", coordinates: [[[83.95, 18.66], [84.35, 18.66], [84.35, 18.96], [83.95, 18.96], [83.95, 18.66]]] } },
+    { type: "Feature", properties: { name: "Ganjam" }, geometry: { type: "Polygon", coordinates: [[[84.68, 19.23], [85.08, 19.23], [85.08, 19.53], [84.68, 19.53], [84.68, 19.23]]] } },
+    { type: "Feature", properties: { name: "Jagatsinghpur" }, geometry: { type: "Polygon", coordinates: [[[85.97, 20.11], [86.37, 20.11], [86.37, 20.41], [85.97, 20.41], [85.97, 20.11]]] } },
+    { type: "Feature", properties: { name: "Jajpur" }, geometry: { type: "Polygon", coordinates: [[[86.13, 20.70], [86.53, 20.70], [86.53, 21.00], [86.13, 21.00], [86.13, 20.70]]] } },
+    { type: "Feature", properties: { name: "Jharsuguda" }, geometry: { type: "Polygon", coordinates: [[[83.80, 21.70], [84.20, 21.70], [84.20, 22.00], [83.80, 22.00], [83.80, 21.70]]] } },
+    { type: "Feature", properties: { name: "Kalahandi" }, geometry: { type: "Polygon", coordinates: [[[82.90, 19.75], [83.30, 19.75], [83.30, 20.05], [82.90, 20.05], [82.90, 19.75]]] } },
+    { type: "Feature", properties: { name: "Kandhamal" }, geometry: { type: "Polygon", coordinates: [[[84.03, 20.15], [84.43, 20.15], [84.43, 20.45], [84.03, 20.45], [84.03, 20.15]]] } },
+    { type: "Feature", properties: { name: "Kendrapara" }, geometry: { type: "Polygon", coordinates: [[[86.22, 20.35], [86.62, 20.35], [86.62, 20.65], [86.22, 20.65], [86.22, 20.35]]] } },
+    { type: "Feature", properties: { name: "Kendujhar" }, geometry: { type: "Polygon", coordinates: [[[85.38, 21.48], [85.78, 21.48], [85.78, 21.78], [85.38, 21.78], [85.38, 21.48]]] } },
+    { type: "Feature", properties: { name: "Khurda" }, geometry: { type: "Polygon", coordinates: [[[85.42, 20.03], [85.82, 20.03], [85.82, 20.33], [85.42, 20.33], [85.42, 20.03]]] } },
+    { type: "Feature", properties: { name: "Koraput" }, geometry: { type: "Polygon", coordinates: [[[82.51, 18.66], [82.91, 18.66], [82.91, 18.96], [82.51, 18.96], [82.51, 18.66]]] } },
+    { type: "Feature", properties: { name: "Malkangiri" }, geometry: { type: "Polygon", coordinates: [[[81.70, 18.20], [82.10, 18.20], [82.10, 18.50], [81.70, 18.50], [81.70, 18.20]]] } },
+    { type: "Feature", properties: { name: "Mayurbhanj" }, geometry: { type: "Polygon", coordinates: [[[86.53, 21.78], [86.93, 21.78], [86.93, 22.08], [86.53, 22.08], [86.53, 21.78]]] } },
+    { type: "Feature", properties: { name: "Nabarangpur" }, geometry: { type: "Polygon", coordinates: [[[82.35, 19.08], [82.75, 19.08], [82.75, 19.38], [82.35, 19.38], [82.35, 19.08]]] } },
+    { type: "Feature", properties: { name: "Nayagarh" }, geometry: { type: "Polygon", coordinates: [[[84.90, 19.98], [85.30, 19.98], [85.30, 20.28], [84.90, 20.28], [84.90, 19.98]]] } },
+    { type: "Feature", properties: { name: "Nuapada" }, geometry: { type: "Polygon", coordinates: [[[82.32, 20.35], [82.72, 20.35], [82.72, 20.65], [82.32, 20.65], [82.32, 20.35]]] } },
+    { type: "Feature", properties: { name: "Puri" }, geometry: { type: "Polygon", coordinates: [[[85.63, 19.66], [86.03, 19.66], [86.03, 19.96], [85.63, 19.96], [85.63, 19.66]]] } },
+    { type: "Feature", properties: { name: "Rayagada" }, geometry: { type: "Polygon", coordinates: [[[83.22, 19.02], [83.62, 19.02], [83.62, 19.32], [83.22, 19.32], [83.22, 19.02]]] } },
+    { type: "Feature", properties: { name: "Sambalpur" }, geometry: { type: "Polygon", coordinates: [[[83.77, 21.32], [84.17, 21.32], [84.17, 21.62], [83.77, 21.62], [83.77, 21.32]]] } },
+    { type: "Feature", properties: { name: "Subarnapur" }, geometry: { type: "Polygon", coordinates: [[[83.72, 20.68], [84.12, 20.68], [84.12, 20.98], [83.72, 20.98], [83.72, 20.68]]] } },
+    { type: "Feature", properties: { name: "Sundergarh" }, geometry: { type: "Polygon", coordinates: [[[83.83, 21.97], [84.23, 21.97], [84.23, 22.27], [83.83, 22.27], [83.83, 21.97]]] } }
+  ]
+};

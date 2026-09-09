@@ -21,6 +21,8 @@ export interface Salon {
   source: string;
   mapUrl: string;
   website: string | null;
+  isClient?: boolean;
+  matchedClient?: Client;
 }
 
 export interface SearchResponse {
@@ -33,3 +35,26 @@ export interface SearchResponse {
   searchRadiusKm: number;
   results: Salon[];
 }
+
+export interface Client {
+  id: string;
+  clientName: string;
+  shopName: string;
+  phone: string;
+  state: string;
+  district: string;
+  cityArea: string;
+  latitude: number;
+  longitude: number;
+  createdAt: string;
+}
+
+export interface WhatsAppTemplate {
+  id: string;
+  title: string;
+  messageText: string;
+  websiteUrl: string;
+  imageUrl?: string;
+}
+
+
