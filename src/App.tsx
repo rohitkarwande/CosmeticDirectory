@@ -7,6 +7,11 @@ import { SalonsTable } from './components/SalonsTable';
 import { Disclaimer } from './components/Disclaimer';
 import { ClientManagementView } from './components/ClientManagementView';
 import { matchSalonToClient } from './utils/clientMatcher';
+import {
+  loadClients,
+  addOrUpdateClient,
+  removeClient
+} from './utils/clientStorage';
 import type { SearchResponse, Client } from './types';
 import { ArrowLeft, Copy, RefreshCw, Sparkles, Check, Database, Eye, MapPin, Search } from 'lucide-react';
 
@@ -40,16 +45,13 @@ function App() {
   // Toast Alert State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Fetch client list from backend
+  // Fetch client list from Supabase Cloud DB with localStorage fallback
   const fetchClients = async () => {
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/clients`);
-      if (res.ok) {
-        const data = await res.json();
-        setClients(data);
-      }
+      const data = await loadClients();
+      setClients(data);
     } catch (err) {
-      console.error('Failed to fetch registered client list:', err);
+      console.warn('Failed to load clients:', err);
     }
   };
 
@@ -215,7 +217,7 @@ function App() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Toggle client status (ON / OFF) and persist to disk via backend API
+  // Toggle client status (ON / OFF) and persist to Supabase Cloud DB
   const handleToggleClientStatus = async (salon: any) => {
     const baseUrl = getApiBaseUrl();
     
@@ -231,25 +233,18 @@ function App() {
 
       if (targetClient) {
         try {
-          const res = await fetch(`${baseUrl}/api/clients/${targetClient.id}`, {
-            method: 'DELETE',
-          });
-          if (res.ok) {
-            setClients(prev => prev.filter(c => c.id !== targetClient.id));
-            showToast(`Client status toggled OFF for "${salon.name}"`);
-          } else {
-            showToast(`Failed to update client status for "${salon.name}"`);
-          }
-        } catch (err) {
-          console.error('Failed to delete client:', err);
-          showToast('Error persisting client status change.');
-        }
+          fetch(`${baseUrl}/api/clients/${targetClient.id}`, { method: 'DELETE' }).catch(() => {});
+        } catch (err) {}
+        const updatedList = await removeClient(targetClient.id);
+        setClients(updatedList);
+        showToast(`Client status toggled OFF for "${salon.name}"`);
       } else {
         showToast(`Could not locate client record for "${salon.name}"`);
       }
     } else {
-      // Create new client record in database
-      const newClientPayload = {
+      // Create new client record
+      const createdClient: Client = {
+        id: `client_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
         clientName: salon.name,
         shopName: salon.name,
         phone: salon.phone || '',
@@ -258,25 +253,20 @@ function App() {
         cityArea: salon.area || salon.city || '',
         latitude: salon.latitude || 19.7515,
         longitude: salon.longitude || 75.7139,
+        createdAt: new Date().toISOString()
       };
 
       try {
-        const res = await fetch(`${baseUrl}/api/clients`, {
+        fetch(`${baseUrl}/api/clients`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newClientPayload),
-        });
-        if (res.ok) {
-          const createdClient = await res.json();
-          setClients(prev => [createdClient, ...prev]);
-          showToast(`"${salon.name}" marked as Client!`);
-        } else {
-          showToast(`Failed to mark "${salon.name}" as Client`);
-        }
-      } catch (err) {
-        console.error('Failed to create client:', err);
-        showToast('Error persisting client status change.');
-      }
+          body: JSON.stringify(createdClient),
+        }).catch(() => {});
+      } catch (err) {}
+
+      const updatedList = await addOrUpdateClient(createdClient);
+      setClients(updatedList);
+      showToast(`"${salon.name}" marked as Client!`);
     }
   };
 

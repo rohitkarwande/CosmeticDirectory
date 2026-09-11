@@ -18,6 +18,11 @@ import type { Client } from '../types';
 import { ClientMap } from './ClientMap';
 import { ClientFormModal } from './ClientFormModal';
 import { STATES_AND_DISTRICTS } from '../data/statesAndDistricts';
+import {
+  loadClients,
+  addOrUpdateClient,
+  removeClient
+} from '../utils/clientStorage';
 
 export function ClientManagementView() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -51,18 +56,15 @@ export function ClientManagementView() {
     return isLocal ? 'http://localhost:5000' : '';
   };
 
-  // Fetch all clients from backend API
+  // Fetch all clients from Supabase Cloud DB with localStorage fallback
   const fetchClients = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/clients`);
-      if (!res.ok) throw new Error('Failed to fetch client database.');
-      const data = await res.json();
+      const data = await loadClients();
       setClients(data);
     } catch (err: any) {
-      console.error('Fetch clients error:', err);
-      setError(err.message || 'Error connecting to client database.');
+      console.warn('Fetch clients error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -98,50 +100,66 @@ export function ClientManagementView() {
     return districtsSet.size;
   }, [clients]);
 
-  // Handle Save Client (Add / Edit)
+  // Handle Save Client (Add / Edit) with Supabase Cloud persistence
   const handleSaveClient = async (clientData: Partial<Client>) => {
     const apiBase = getApiBaseUrl();
+
     if (editingClient) {
       // Update existing
-      const res = await fetch(`${apiBase}/api/clients/${editingClient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clientData)
-      });
-      if (!res.ok) throw new Error('Failed to update client.');
-      const updated = await res.json();
-      setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
-      showToast(`Updated "${updated.shopName}" client record.`);
+      let updatedClient: Client = { ...editingClient, ...clientData } as Client;
+      try {
+        fetch(`${apiBase}/api/clients/${editingClient.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(clientData)
+        }).catch(() => {});
+      } catch (err) {}
+
+      const updatedList = await addOrUpdateClient(updatedClient);
+      setClients(updatedList);
+      showToast(`Updated "${updatedClient.shopName}" client record.`);
     } else {
       // Create new
-      const res = await fetch(`${apiBase}/api/clients`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clientData)
-      });
-      if (!res.ok) throw new Error('Failed to create client.');
-      const newClient = await res.json();
-      setClients(prev => [newClient, ...prev]);
+      const newClient: Client = {
+        id: `client_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        clientName: clientData.clientName || '',
+        shopName: clientData.shopName || '',
+        phone: clientData.phone || '',
+        state: clientData.state || 'Maharashtra',
+        district: clientData.district || '',
+        cityArea: clientData.cityArea || '',
+        latitude: clientData.latitude || 19.7515,
+        longitude: clientData.longitude || 75.7139,
+        createdAt: new Date().toISOString()
+      };
+
+      try {
+        fetch(`${apiBase}/api/clients`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(clientData)
+        }).catch(() => {});
+      } catch (err) {}
+
+      const updatedList = await addOrUpdateClient(newClient);
+      setClients(updatedList);
       showToast(`Added client "${newClient.shopName}" to ${newClient.district} district!`);
     }
   };
 
-  // Handle Delete Client
+  // Handle Delete Client with Supabase Cloud removal
   const handleDeleteClient = async (id: string, shopName: string) => {
     if (!window.confirm(`Are you sure you want to delete client record for "${shopName}"?`)) {
       return;
     }
 
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/clients/${id}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) throw new Error('Failed to delete client.');
-      setClients(prev => prev.filter(c => c.id !== id));
-      showToast(`Client record for "${shopName}" removed.`);
-    } catch (err: any) {
-      alert(err.message || 'Error deleting client record.');
-    }
+      fetch(`${getApiBaseUrl()}/api/clients/${id}`, { method: 'DELETE' }).catch(() => {});
+    } catch (err) {}
+
+    const updatedList = await removeClient(id);
+    setClients(updatedList);
+    showToast(`Client record for "${shopName}" removed.`);
   };
 
   return (

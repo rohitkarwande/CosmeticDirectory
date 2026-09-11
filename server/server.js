@@ -448,31 +448,48 @@ app.get('/api/google-usage', (req, res) => {
 
 // --- CLIENT DATA PERSISTENCE & API ---
 const clientsFilePath = path.resolve(__dirname, 'data/clients.json');
+let inMemoryClientsCache = null;
 
 const ensureClientsFile = () => {
-  const dir = path.dirname(clientsFilePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  if (!fs.existsSync(clientsFilePath)) {
-    fs.writeFileSync(clientsFilePath, JSON.stringify([]), 'utf8');
+  try {
+    const dir = path.dirname(clientsFilePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    if (!fs.existsSync(clientsFilePath)) {
+      fs.writeFileSync(clientsFilePath, JSON.stringify([]), 'utf8');
+    }
+  } catch (err) {
+    console.warn('[Server Storage] Unable to create clients data file (read-only environment):', err.message);
   }
 };
 
 const getClientsFromFile = () => {
+  if (inMemoryClientsCache !== null) {
+    return inMemoryClientsCache;
+  }
   ensureClientsFile();
   try {
-    const data = fs.readFileSync(clientsFilePath, 'utf8');
-    return JSON.parse(data || '[]');
+    if (fs.existsSync(clientsFilePath)) {
+      const data = fs.readFileSync(clientsFilePath, 'utf8');
+      inMemoryClientsCache = JSON.parse(data || '[]');
+      return inMemoryClientsCache;
+    }
   } catch (err) {
-    console.error('Error reading clients file:', err);
-    return [];
+    console.error('[Server Storage] Error reading clients file:', err.message);
   }
+  inMemoryClientsCache = [];
+  return inMemoryClientsCache;
 };
 
 const saveClientsToFile = (clients) => {
-  ensureClientsFile();
-  fs.writeFileSync(clientsFilePath, JSON.stringify(clients, null, 2), 'utf8');
+  inMemoryClientsCache = clients;
+  try {
+    ensureClientsFile();
+    fs.writeFileSync(clientsFilePath, JSON.stringify(clients, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('[Server Storage] Could not write to clients.json (read-only environment):', err.message);
+  }
 };
 
 /**
@@ -512,8 +529,8 @@ app.post('/api/clients', (req, res) => {
       createdAt: new Date().toISOString()
     };
 
-    clients.unshift(newClient);
-    saveClientsToFile(clients);
+    const updatedClients = [newClient, ...clients];
+    saveClientsToFile(updatedClients);
     res.status(201).json(newClient);
   } catch (err) {
     console.error('Error saving client:', err);
@@ -534,14 +551,15 @@ app.put('/api/clients/:id', (req, res) => {
       return res.status(404).json({ error: 'Client not found.' });
     }
 
-    clients[index] = {
+    const updatedClient = {
       ...clients[index],
       ...req.body,
       id // preserve original id
     };
 
+    clients[index] = updatedClient;
     saveClientsToFile(clients);
-    res.json(clients[index]);
+    res.json(updatedClient);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update client.' });
   }
