@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Send, Image as ImageIcon, CheckCircle2, ChevronRight, AlertCircle, Edit3, Copy } from 'lucide-react';
 import type { Salon } from '../types';
+import { copyProductBannerToClipboard } from '../utils/imageCopyHelper';
 
 interface WhatsAppCampaignModalProps {
   isOpen: boolean;
@@ -24,10 +25,9 @@ export const WhatsAppCampaignModal: React.FC<WhatsAppCampaignModalProps> = ({
   );
   
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(
-    'https://just-more-beauty.vercel.app/catalog.jpg'
+    '/catalog.jpg'
   );
 
-  
   const [sentStatus, setSentStatus] = useState<Record<string, 'sent' | 'skipped' | 'pending'>>({});
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null);
@@ -58,57 +58,18 @@ export const WhatsAppCampaignModal: React.FC<WhatsAppCampaignModalProps> = ({
   };
 
   const handleCopyImageToClipboard = async (): Promise<boolean> => {
-    if (!imagePreviewUrl) return false;
-    try {
-      let pngBlob: Blob | null = null;
-
-      try {
-        const res = await fetch(imagePreviewUrl, { mode: 'cors' });
-        if (res.ok) {
-          const blob = await res.blob();
-          pngBlob = blob.type === 'image/png' ? blob : new Blob([blob], { type: 'image/png' });
-        }
-      } catch (e) {
-        console.warn('Direct fetch failed, trying canvas fallback:', e);
-      }
-
-      if (!pngBlob) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = imagePreviewUrl;
-        });
-
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width || 800;
-        canvas.height = img.height || 800;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          pngBlob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/png'));
-        }
-      }
-
-      if (pngBlob && navigator.clipboard && window.ClipboardItem) {
-        await navigator.clipboard.write([
-          new window.ClipboardItem({ 'image/png': pngBlob })
-        ]);
-        setCopiedNotification(true);
-        setTimeout(() => setCopiedNotification(false), 3000);
-        return true;
-      }
-    } catch (err) {
-      console.warn('Direct clipboard copy failed:', err);
+    const success = await copyProductBannerToClipboard(imagePreviewUrl || '/catalog.jpg');
+    if (success) {
+      setCopiedNotification(true);
+      setTimeout(() => setCopiedNotification(false), 3500);
     }
-    return false;
+    return success;
   };
 
   const handleLaunchWhatsApp = async (salon: Salon) => {
     if (!salon.phone) return;
 
-    // Try copying photo to clipboard first
+    // Automatically copy demo product banner to system clipboard first
     await handleCopyImageToClipboard();
 
     // Clean phone number (strip + or formatting)

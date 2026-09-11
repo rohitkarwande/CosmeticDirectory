@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Phone, MessageSquare, MapPin, Copy, ChevronLeft, ChevronRight, CheckCircle2, Send, Edit3, AlertCircle } from 'lucide-react';
 import type { Salon } from '../types';
 import { WhatsAppCampaignModal } from './WhatsAppCampaignModal';
+import { copyProductBannerToClipboard } from '../utils/imageCopyHelper';
 
 interface SalonsTableProps {
   salons: Salon[];
@@ -73,8 +74,11 @@ export const SalonsTable: React.FC<SalonsTableProps> = ({ salons, onToggleClient
 
   const handleSingleWhatsApp = (salon: Salon) => {
     if (!salon.phone) return;
+    // Copy demo product banner to system clipboard automatically
+    copyProductBannerToClipboard('/catalog.jpg').catch(() => {});
+
     const cleanPhone = salon.phone.replace(/\D/g, '');
-    const msg = `Hello ${salon.name}, we saw your store in ${salon.area || salon.city || 'your area'}.\nCheck out our beauty & cosmetics collection here: https://just-more-beauty.vercel.app/\nWould you like to explore wholesale rates for your shop?`;
+    const msg = `Hello ${salon.name}, we saw your store in ${salon.area || salon.city || 'your area'}.\nWe offer premium beauty & cosmetics supplies for salons and retailers.\nCheck out our beauty & cosmetics collection here: https://just-more-beauty.vercel.app/\nWould you like to explore wholesale rates for your shop?`;
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
