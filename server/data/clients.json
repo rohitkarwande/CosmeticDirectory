@@ -1,5 +1,41 @@
 [
   {
+    "id": "client_1789915567961_ry1mcf",
+    "clientName": "Shamshudharwala Cosmetics",
+    "shopName": "Shamshudharwala Cosmetics",
+    "phone": "+919333286724",
+    "state": "Maharashtra",
+    "district": "Solapur",
+    "cityArea": "Tembhurni",
+    "latitude": 18.0342,
+    "longitude": 75.1917,
+    "createdAt": "2026-09-20T14:46:07.961Z"
+  },
+  {
+    "id": "client_1789915425475_navkgq",
+    "clientName": "Apsara beauty center",
+    "shopName": "Apsara beauty center",
+    "phone": "+917427879544",
+    "state": "Karnataka",
+    "district": "Vijayapura",
+    "cityArea": "Vijayapura",
+    "latitude": 16.8296737,
+    "longitude": 75.7143055,
+    "createdAt": "2026-09-20T14:43:45.475Z"
+  },
+  {
+    "id": "client_1789915349155_8m843o",
+    "clientName": "A V Cosmetics And Jewellery Hub",
+    "shopName": "A V Cosmetics And Jewellery Hub",
+    "phone": "+918208106324",
+    "state": "Maharashtra",
+    "district": "Palghar",
+    "cityArea": "Vasai-Virar",
+    "latitude": 19.4516632,
+    "longitude": 72.8061853,
+    "createdAt": "2026-09-20T14:42:29.155Z"
+  },
+  {
     "id": "client_1788967806092_3oychf",
     "clientName": "Shamshudharwala Cosmetics",
     "shopName": "Shamshudharwala Cosmetics",

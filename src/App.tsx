@@ -12,6 +12,7 @@ import {
   addOrUpdateClient,
   removeClient
 } from './utils/clientStorage';
+import { resolveStateAndDistrict } from './utils/districtResolver';
 import type { SearchResponse, Client } from './types';
 import { ArrowLeft, Copy, RefreshCw, Sparkles, Check, Database, Eye, MapPin, Search } from 'lucide-react';
 
@@ -242,14 +243,21 @@ function App() {
         showToast(`Could not locate client record for "${salon.name}"`);
       }
     } else {
+      // Resolve exact State and District allocation
+      const { state: resolvedState, district: resolvedDistrict } = await resolveStateAndDistrict(
+        salon,
+        query,
+        baseUrl
+      );
+
       // Create new client record
       const createdClient: Client = {
         id: `client_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
         clientName: salon.name,
         shopName: salon.name,
         phone: salon.phone || '',
-        state: salon.state || 'Maharashtra',
-        district: salon.district || salon.area || 'Unknown',
+        state: resolvedState,
+        district: resolvedDistrict,
         cityArea: salon.area || salon.city || '',
         latitude: salon.latitude || 19.7515,
         longitude: salon.longitude || 75.7139,
@@ -266,7 +274,7 @@ function App() {
 
       const updatedList = await addOrUpdateClient(createdClient);
       setClients(updatedList);
-      showToast(`"${salon.name}" marked as Client!`);
+      showToast(`"${salon.name}" added to Owner Client Map (${resolvedDistrict}, ${resolvedState})!`);
     }
   };
 
@@ -363,7 +371,7 @@ function App() {
             )}
 
             {/* Features Info cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 pt-4 sm:pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-4 sm:pt-6 max-w-4xl mx-auto">
               <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-2">
                 <h3 className="font-extrabold text-slate-800 text-sm sm:text-base flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-brand-500 flex-shrink-0" />
@@ -381,16 +389,6 @@ function App() {
                 </h3>
                 <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
                   Normalizes phone numbers to standard Indian formats (+91) and formats full postal addresses for easy contact.
-                </p>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-2 sm:col-span-2 md:col-span-1">
-                <h3 className="font-extrabold text-slate-800 text-sm sm:text-base flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                  Bulk Contact Copy
-                </h3>
-                <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
-                  Copy phone numbers in bulk with one click for easy client outreach and WhatsApp messaging.
                 </p>
               </div>
             </div>

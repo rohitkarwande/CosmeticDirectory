@@ -68,6 +68,109 @@ class MemoryCache {
 
 const searchCache = new MemoryCache();
 
+// Known Place-to-District mapping for instantaneous response & district resolution
+const LOCAL_PLACE_MAP = {
+  // Goa Places
+  'mapusa': { district: 'North Goa', state: 'Goa', lat: 15.5909, lng: 73.8102 },
+  'mapuca': { district: 'North Goa', state: 'Goa', lat: 15.5909, lng: 73.8102 },
+  'panaji': { district: 'North Goa', state: 'Goa', lat: 15.4909, lng: 73.8278 },
+  'panjim': { district: 'North Goa', state: 'Goa', lat: 15.4909, lng: 73.8278 },
+  'margao': { district: 'South Goa', state: 'Goa', lat: 15.2832, lng: 73.9862 },
+  'madgaon': { district: 'South Goa', state: 'Goa', lat: 15.2832, lng: 73.9862 },
+  'vasco': { district: 'South Goa', state: 'Goa', lat: 15.3959, lng: 73.8122 },
+  'vasco da gama': { district: 'South Goa', state: 'Goa', lat: 15.3959, lng: 73.8122 },
+
+  // Jalgaon District
+  'chalisgaon': { district: 'Jalgaon', state: 'Maharashtra', lat: 20.4626, lng: 75.0069 },
+  'bhusawal': { district: 'Jalgaon', state: 'Maharashtra', lat: 21.0455, lng: 75.7878 },
+  'bhusaval': { district: 'Jalgaon', state: 'Maharashtra', lat: 21.0455, lng: 75.7878 },
+  'pachora': { district: 'Jalgaon', state: 'Maharashtra', lat: 20.6622, lng: 75.3524 },
+  'chopda': { district: 'Jalgaon', state: 'Maharashtra', lat: 21.2464, lng: 75.2974 },
+  'amalner': { district: 'Jalgaon', state: 'Maharashtra', lat: 21.0469, lng: 75.0617 },
+  'jamner': { district: 'Jalgaon', state: 'Maharashtra', lat: 20.8062, lng: 75.7844 },
+  'yawal': { district: 'Jalgaon', state: 'Maharashtra', lat: 21.1685, lng: 75.6961 },
+  'erandol': { district: 'Jalgaon', state: 'Maharashtra', lat: 20.9167, lng: 75.3333 },
+  'parola': { district: 'Jalgaon', state: 'Maharashtra', lat: 20.8845, lng: 75.1189 },
+  'raver': { district: 'Jalgaon', state: 'Maharashtra', lat: 21.2415, lng: 75.9818 },
+  'jalgaon': { district: 'Jalgaon', state: 'Maharashtra', lat: 21.0077, lng: 75.5626 },
+
+  // Pune District
+  'kothrud': { district: 'Pune', state: 'Maharashtra', lat: 18.5074, lng: 73.8077 },
+  'hinjawadi': { district: 'Pune', state: 'Maharashtra', lat: 18.5912, lng: 73.7389 },
+  'baner': { district: 'Pune', state: 'Maharashtra', lat: 18.5590, lng: 73.7868 },
+  'wakad': { district: 'Pune', state: 'Maharashtra', lat: 18.5987, lng: 73.7661 },
+  'hadapsar': { district: 'Pune', state: 'Maharashtra', lat: 18.5089, lng: 73.9260 },
+  'viman nagar': { district: 'Pune', state: 'Maharashtra', lat: 18.5679, lng: 73.9143 },
+  'pune': { district: 'Pune', state: 'Maharashtra', lat: 18.5204, lng: 73.8567 },
+  'pimpri': { district: 'Pune', state: 'Maharashtra', lat: 18.6298, lng: 73.7997 },
+  'chinchwad': { district: 'Pune', state: 'Maharashtra', lat: 18.6272, lng: 73.8009 },
+  'baramati': { district: 'Pune', state: 'Maharashtra', lat: 18.1517, lng: 74.5772 },
+  
+  // Mumbai Suburban & City
+  'andheri': { district: 'Mumbai Suburban', state: 'Maharashtra', lat: 19.1197, lng: 72.8464 },
+  'bandra': { district: 'Mumbai Suburban', state: 'Maharashtra', lat: 19.0596, lng: 72.8295 },
+  'borivali': { district: 'Mumbai Suburban', state: 'Maharashtra', lat: 19.2307, lng: 72.8567 },
+  'juhu': { district: 'Mumbai Suburban', state: 'Maharashtra', lat: 19.1075, lng: 72.8263 },
+  'malad': { district: 'Mumbai Suburban', state: 'Maharashtra', lat: 19.1874, lng: 72.8484 },
+  'powai': { district: 'Mumbai Suburban', state: 'Maharashtra', lat: 19.1176, lng: 72.9060 },
+  'kurla': { district: 'Mumbai Suburban', state: 'Maharashtra', lat: 19.0726, lng: 72.8845 },
+  'ghatkopar': { district: 'Mumbai Suburban', state: 'Maharashtra', lat: 19.0860, lng: 72.9081 },
+  'dadar': { district: 'Mumbai City', state: 'Maharashtra', lat: 19.0178, lng: 72.8478 },
+  'colaba': { district: 'Mumbai City', state: 'Maharashtra', lat: 18.9067, lng: 72.8147 },
+  'marine lines': { district: 'Mumbai City', state: 'Maharashtra', lat: 18.9447, lng: 72.8242 },
+  'mumbai': { district: 'Mumbai City', state: 'Maharashtra', lat: 18.9388, lng: 72.8353 },
+
+  // Thane & Palghar & Raigad
+  'thane': { district: 'Thane', state: 'Maharashtra', lat: 19.2183, lng: 72.9781 },
+  'kalyan': { district: 'Thane', state: 'Maharashtra', lat: 19.2403, lng: 73.1305 },
+  'dombivli': { district: 'Thane', state: 'Maharashtra', lat: 19.2184, lng: 73.0867 },
+  'navi mumbai': { district: 'Thane', state: 'Maharashtra', lat: 19.0330, lng: 73.0297 },
+  'vashi': { district: 'Thane', state: 'Maharashtra', lat: 19.0771, lng: 72.9986 },
+  'bhiwandi': { district: 'Thane', state: 'Maharashtra', lat: 19.2813, lng: 73.0483 },
+  'panvel': { district: 'Raigad', state: 'Maharashtra', lat: 18.9894, lng: 73.1175 },
+  'palghar': { district: 'Palghar', state: 'Maharashtra', lat: 19.6967, lng: 72.7699 },
+  'vasai': { district: 'Palghar', state: 'Maharashtra', lat: 19.3649, lng: 72.8194 },
+  'virar': { district: 'Palghar', state: 'Maharashtra', lat: 19.4559, lng: 72.8106 },
+
+  // Nashik
+  'nashik': { district: 'Nashik', state: 'Maharashtra', lat: 19.9975, lng: 73.7898 },
+  'panchavati': { district: 'Nashik', state: 'Maharashtra', lat: 20.0076, lng: 73.7947 },
+  'malegaon': { district: 'Nashik', state: 'Maharashtra', lat: 20.5579, lng: 74.5283 },
+
+  // Chhatrapati Sambhajinagar / Aurangabad
+  'chhatrapati sambhajinagar': { district: 'Chhatrapati Sambhajinagar', state: 'Maharashtra', lat: 19.8762, lng: 75.3433 },
+  'aurangabad': { district: 'Chhatrapati Sambhajinagar', state: 'Maharashtra', lat: 19.8762, lng: 75.3433 },
+
+  // Ahilyanagar / Ahmednagar
+  'ahmednagar': { district: 'Ahilyanagar', state: 'Maharashtra', lat: 19.0948, lng: 74.7480 },
+  'ahilyanagar': { district: 'Ahilyanagar', state: 'Maharashtra', lat: 19.0948, lng: 74.7480 },
+  'shrirampur': { district: 'Ahilyanagar', state: 'Maharashtra', lat: 19.6190, lng: 74.6560 },
+  'sangamner': { district: 'Ahilyanagar', state: 'Maharashtra', lat: 19.5761, lng: 74.2070 },
+  'shirdi': { district: 'Ahilyanagar', state: 'Maharashtra', lat: 19.7667, lng: 74.4766 },
+
+  // Nagpur
+  'nagpur': { district: 'Nagpur', state: 'Maharashtra', lat: 21.1458, lng: 79.0882 },
+  'dharampeth': { district: 'Nagpur', state: 'Maharashtra', lat: 21.1415, lng: 79.0620 },
+  'sadar': { district: 'Nagpur', state: 'Maharashtra', lat: 21.1610, lng: 79.0819 },
+
+  // Satara, Kolhapur, Solapur, Sangli
+  'satara': { district: 'Satara', state: 'Maharashtra', lat: 17.6805, lng: 74.0183 },
+  'karad': { district: 'Satara', state: 'Maharashtra', lat: 17.2889, lng: 74.1834 },
+  'wai': { district: 'Satara', state: 'Maharashtra', lat: 17.9472, lng: 73.8967 },
+  'phaltan': { district: 'Satara', state: 'Maharashtra', lat: 17.9867, lng: 74.4267 },
+  'kolhapur': { district: 'Kolhapur', state: 'Maharashtra', lat: 16.7050, lng: 74.2433 },
+  'ichalkaranji': { district: 'Kolhapur', state: 'Maharashtra', lat: 16.6970, lng: 74.4608 },
+  'solapur': { district: 'Solapur', state: 'Maharashtra', lat: 17.6599, lng: 75.9064 },
+  'pandharpur': { district: 'Solapur', state: 'Maharashtra', lat: 17.6778, lng: 75.3278 },
+  'sangli': { district: 'Sangli', state: 'Maharashtra', lat: 16.8524, lng: 74.5815 },
+  'ratnagiri': { district: 'Ratnagiri', state: 'Maharashtra', lat: 16.9902, lng: 73.3120 },
+  'latur': { district: 'Latur', state: 'Maharashtra', lat: 18.4088, lng: 76.5604 },
+  'nanded': { district: 'Nanded', state: 'Maharashtra', lat: 19.1383, lng: 77.3210 },
+  'amravati': { district: 'Amravati', state: 'Maharashtra', lat: 20.9374, lng: 77.7796 },
+  'akola': { district: 'Akola', state: 'Maharashtra', lat: 20.7002, lng: 77.0082 },
+  'chandrapur': { district: 'Chandrapur', state: 'Maharashtra', lat: 19.9615, lng: 79.2961 }
+};
+
 // Helper to calculate Haversine distance in meters
 function getHaversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371000; // metres
@@ -297,6 +400,36 @@ export async function performSearchForLocation(targetLocation) {
 
   // Sort final results ascending by distance from searched location (closest local shops first)
   finalResults.sort((a, b) => (a.distanceMeters || 0) - (b.distanceMeters || 0));
+
+  // Stage 7: Auto-populate valid District & State allocation for search result items
+  for (const salon of finalResults) {
+    if (!salon.district || !salon.state) {
+      const candidates = [salon.area, salon.city, salon.district, targetLocation].filter(Boolean);
+      for (const cand of candidates) {
+        const norm = cand.toLowerCase().trim();
+        if (LOCAL_PLACE_MAP[norm]) {
+          salon.district = LOCAL_PLACE_MAP[norm].district;
+          salon.state = LOCAL_PLACE_MAP[norm].state;
+          break;
+        }
+        for (const [k, info] of Object.entries(LOCAL_PLACE_MAP)) {
+          if (norm.includes(k) || k.includes(norm)) {
+            salon.district = info.district;
+            salon.state = info.state;
+            break;
+          }
+        }
+        if (salon.district) break;
+      }
+    }
+    if (!salon.district && geocodeResult && geocodeResult.address) {
+      const addr = geocodeResult.address;
+      salon.state = salon.state || addr.state || 'Maharashtra';
+      salon.district = (addr.state_district || addr.county || addr.district || addr.city_district || addr.city || '').replace(/ District/i, '').replace(/ Division/i, '').trim();
+    }
+    salon.state = salon.state || 'Maharashtra';
+    salon.district = salon.district || 'Pune';
+  }
 
   return { geocodeResult, finalResults };
 }
